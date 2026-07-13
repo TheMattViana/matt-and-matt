@@ -1164,7 +1164,275 @@
       render();
     },
   };
-  root.GAMES = [grandprix, flappy, draft, ice, hex, connect4, gomoku];
+  /* ================= DOODLE DRIFT =================
+     A two-phone "telephone" for drawings. The game hands out a secret prompt;
+     you draw it. Your partner sees only the drawing, guesses what it is, then
+     draws THEIR guess. Back and forth for a few rounds, then the whole chain is
+     revealed so you can watch it drift into nonsense. No winner — just the mess.
+
+     Turn layout (draws = 3):
+       step 0  [P first ]  draw the secret prompt                 -> { d }
+       step 1  [P other ]  guess prev drawing, then draw it       -> { g, d }
+       step 2  [P first ]  guess prev drawing, then draw it       -> { g, d }
+       step 3  [P other ]  guess prev drawing (final)             -> { g }
+     Even steps drawn by `f`, odd by `1-f`, so both players draw AND guess.
+     Drawings are packed to bytes (1 byte stroke-length + 2 bytes/point at
+     0..255) then base64url'd, keeping the whole thing tiny enough for a link. */
+  const DOODLE = { draws: 3, turns: 4, canvas: 512, minDist: 4, maxPts: 700 };
+
+  const DOODLE_PROMPTS = [
+    'a cat riding a skateboard', 'a haunted toaster', 'a giraffe wearing a tie',
+    'a wizard stuck in traffic', 'a dinosaur eating spaghetti', 'a robot walking a dog',
+    'a shark in a business suit', 'a snail with a rocket', 'a penguin at the beach',
+    'a grumpy potato', 'a ghost drinking coffee', 'a frog playing guitar',
+    'an octopus juggling', 'a llama on a bicycle', 'a pizza with legs',
+    'a vampire brushing his teeth', 'a duck lifting weights', 'a spider knitting a sweater',
+    'a T-rex trying to do push-ups', 'a banana wearing sunglasses', 'a cactus in a party hat',
+    'a bear working at a computer', 'a jellyfish in a top hat', 'a hamster driving a truck',
+    'a mermaid eating a burger', 'a snowman on vacation', 'a chicken riding a horse',
+    'a sloth running a marathon', 'a cloud raining spaghetti', 'a turtle with a jetpack',
+    'a bee wearing tiny boots', 'a whale flying a kite', 'a raccoon robbing a fridge',
+    'a unicorn doing yoga', 'a pigeon reading a newspaper', 'a crab playing the drums',
+    'a moose in a hot air balloon', 'a hedgehog baking a cake', 'an alien ordering pizza',
+    'a flamingo on stilts', 'a walrus surfing', 'a kangaroo boxing a ghost',
+    'a squirrel with a chainsaw', 'a goat on a trampoline', 'a fox stealing a pie',
+    'an owl wearing headphones', 'a koala doing karate', 'a lobster in the gym',
+    'a pug in a superhero cape', 'a monkey painting a wall', 'a rhino ballet dancing',
+    'a hippo eating ice cream', 'a parrot pirate captain', 'a beaver building a skyscraper',
+    'a hamburger flying a plane', 'a donut lifting weights', 'a sock puppet president',
+    'a snowman melting at the beach', 'a caterpillar wearing many shoes', 'a tornado made of cats',
+    'a wizard cat casting a spell', 'a robot flipping pancakes', 'a dragon eating a cupcake',
+    'a zombie gardener', 'a mime stuck in a real box', 'a chef juggling knives',
+    'an astronaut mowing the lawn', 'a knight fighting a stapler', 'a ninja making toast',
+    'a cowboy riding a giant chicken', 'a scientist with wild hair', 'a clown on a unicycle',
+    'a grandma skateboarding', 'a baby driving a tank', 'a businessman on a pogo stick',
+    'a superhero who is very tired', 'a detective following a snail', 'a barista octopus',
+    'a fish out of water (literally)', 'a lonely traffic cone', 'an angry stapler',
+    'a happy little cloud', 'a screaming teapot', 'a suspicious sandwich',
+    'a tooth with a crown', 'a bowling ball with a face', 'a light bulb having an idea',
+    'a volcano sneezing', 'a rollercoaster of emotions', 'a UFO abducting a cow',
+    'a mountain wearing a scarf', 'a river of chocolate', 'a moon eating cheese',
+    'a sun with sunglasses', 'a rainbow tripping over', 'a lightning bolt taking a nap',
+    'a snail leaving a trail of glitter', 'a hotdog walking a hotdog', 'a piano with tiny legs',
+    'a bathtub sailing the ocean', 'a teapot pouring a storm', 'a broom that won a race',
+    'a pineapple wearing a helmet', 'a strawberry bodybuilder', 'a carrot detective',
+    'an egg cracking under pressure', 'a mushroom throwing a party', 'a chili pepper on fire',
+    'a spoon and a fork in love', 'a rubber duck army', 'a traffic jam of snails',
+    'a house with chicken legs', 'a mailbox that is hungry', 'a lamp telling a secret',
+    'a chair that ran away', 'a cloud with a bad mood',
+  ];
+  function doodlePrompt(seed) { return DOODLE_PROMPTS[(seed >>> 0) % DOODLE_PROMPTS.length]; }
+
+  // ---- drawing pack / unpack (compact bytes -> base64url) ----------------
+  function d_bytesToB64u(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function d_b64uToBytes(str) {
+    str = String(str).replace(/-/g, '+').replace(/_/g, '/');
+    while (str.length % 4) str += '=';
+    let bin; try { bin = atob(str); } catch (e) { return new Uint8Array(0); }
+    const b = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+    return b;
+  }
+  function packDrawing(strokes) {
+    const out = [];
+    for (const st of strokes) {
+      const n = st.length >> 1;
+      if (n === 0) continue;
+      for (let off = 0; off < n; off += 255) {
+        const c = Math.min(255, n - off);
+        out.push(c);
+        for (let i = 0; i < c; i++) out.push(st[(off + i) * 2] & 255, st[(off + i) * 2 + 1] & 255);
+      }
+    }
+    return d_bytesToB64u(new Uint8Array(out));
+  }
+  function unpackDrawing(str) {
+    const b = d_b64uToBytes(str), strokes = [];
+    let i = 0;
+    while (i < b.length) {
+      const n = b[i++], st = [];
+      for (let k = 0; k < n && i + 1 < b.length; k++) { st.push(b[i], b[i + 1]); i += 2; }
+      if (st.length) strokes.push(st);
+    }
+    return strokes;
+  }
+
+  // ---- render a packed drawing onto a canvas -----------------------------
+  function renderDrawing(canvas, strokes, opts) {
+    opts = opts || {};
+    const W = canvas.width, H = canvas.height, ctx = canvas.getContext('2d');
+    const ink = opts.ink || '#1a1c26';
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = opts.bg || '#f7f5ef';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = ink; ctx.fillStyle = ink;
+    ctx.lineWidth = Math.max(2, W / 64);
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const sx = W / 255, sy = H / 255;
+    for (const st of strokes) {
+      const n = st.length >> 1;
+      if (n === 0) continue;
+      if (n === 1) { ctx.beginPath(); ctx.arc(st[0] * sx, st[1] * sy, ctx.lineWidth / 2, 0, 7); ctx.fill(); continue; }
+      ctx.beginPath(); ctx.moveTo(st[0] * sx, st[1] * sy);
+      for (let i = 1; i < n; i++) ctx.lineTo(st[i * 2] * sx, st[i * 2 + 1] * sy);
+      ctx.stroke();
+    }
+  }
+
+  // ---- freehand capture onto a live canvas -------------------------------
+  function makeSketch(canvas, strokes, onchange) {
+    let drawing = false, cur = null;
+    const count = () => { let n = 0; for (const st of strokes) n += st.length >> 1; return n; };
+    function toXY(e) {
+      const r = canvas.getBoundingClientRect();
+      const x = Math.round((e.clientX - r.left) / r.width * 255);
+      const y = Math.round((e.clientY - r.top) / r.height * 255);
+      return [Math.max(0, Math.min(255, x)), Math.max(0, Math.min(255, y))];
+    }
+    const redraw = () => renderDrawing(canvas, strokes);
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (count() >= DOODLE.maxPts) { UI.toast('Whoa — canvas is full!'); return; }
+      drawing = true; const p = toXY(e); cur = [p[0], p[1]]; strokes.push(cur);
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+      redraw(); onchange && onchange();
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!drawing) return; e.preventDefault();
+      if (count() >= DOODLE.maxPts) { drawing = false; return; }
+      const p = toXY(e), lx = cur[cur.length - 2], ly = cur[cur.length - 1];
+      if (Math.abs(p[0] - lx) + Math.abs(p[1] - ly) >= DOODLE.minDist) { cur.push(p[0], p[1]); redraw(); }
+    });
+    const end = () => { if (drawing) { drawing = false; cur = null; onchange && onchange(); } };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    redraw();
+  }
+
+  function doodleStepKind(step) { return step === 0 ? 'draw' : (step < DOODLE.draws ? 'both' : 'guess'); }
+
+  function doodleView(m, f, st) {
+    st = st || {};
+    const total = DOODLE.turns;
+    const over = m.length >= total;
+    const turn = over ? null : ((m.length % 2 === 0) ? f : 1 - f);
+    return {
+      over, turn, step: m.length, total, draws: DOODLE.draws,
+      lastMover: m.length ? (((m.length - 1) % 2 === 0) ? f : 1 - f) : null,
+      winner: null, seed: st.seed || 0,
+    };
+  }
+  function doodleLegal(m, f, move) { return !!move && (move.g != null || move.d != null); }
+
+  function doodleCanvas(cls, px) { const c = h('canvas', { class: cls }); c.width = px; c.height = px; return c; }
+
+  function renderDoodlePlay(rootEl, api) {
+    const v = api.view, step = v.step, kind = doodleStepKind(step), m = api.m;
+    const wrap = h('div', { class: 'doodle' });
+    rootEl.append(wrap);
+
+    // what you're working from
+    if (kind === 'draw') {
+      wrap.append(h('div', { class: 'cue' },
+        h('div', { class: 'cue-label' }, '✏️ Secret prompt — only you see this. Draw it!'),
+        h('div', { class: 'cue-prompt' }, doodlePrompt(v.seed))));
+    } else {
+      wrap.append(h('div', { class: 'cue' }, h('div', { class: 'cue-label' }, '🔍 What on earth is this?')));
+      const view = doodleCanvas('doodle-view', 480);
+      wrap.append(view); renderDrawing(view, unpackDrawing(m[step - 1].d));
+    }
+
+    // guess input
+    let guessInput = null;
+    if (kind !== 'draw') {
+      guessInput = h('input', {
+        class: 'doodle-input', type: 'text', maxlength: '42', placeholder: 'your best guess…',
+        autocomplete: 'off', autocapitalize: 'sentences', spellcheck: 'false',
+      });
+      wrap.append(h('div', { class: 'field-label' }, kind === 'both' ? '①  Your guess' : 'Your guess'));
+      wrap.append(guessInput);
+      guessInput.addEventListener('input', update);
+      if (kind === 'guess') guessInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSubmit(); });
+    }
+
+    // draw canvas
+    let strokes = null, canvas = null;
+    if (kind !== 'guess') {
+      strokes = [];
+      canvas = doodleCanvas('doodle-canvas', DOODLE.canvas);
+      wrap.append(h('div', { class: 'field-label' }, kind === 'both' ? '②  Now draw YOUR answer for them' : '✍️  Sketch it — keep it loose!'));
+      wrap.append(canvas);
+      wrap.append(h('div', { class: 'sketch-tools' },
+        h('button', { class: 'btn btn-ghost tool', onclick: () => { strokes.pop(); renderDrawing(canvas, strokes); update(); } }, '↩︎ Undo'),
+        h('button', { class: 'btn btn-ghost tool', onclick: () => { strokes.length = 0; renderDrawing(canvas, strokes); update(); } }, '🗑 Clear')));
+      makeSketch(canvas, strokes, update);
+    }
+
+    const submit = h('button', { class: 'btn btn-primary big', onclick: doSubmit },
+      kind === 'draw' ? '✓ Done drawing' : kind === 'both' ? '✓ Lock in guess + drawing' : '✓ Lock in my guess');
+    wrap.append(submit);
+
+    function valid() {
+      if (guessInput && !guessInput.value.trim()) return false;
+      if (strokes && strokes.length === 0) return false;
+      return true;
+    }
+    function update() { submit.disabled = !valid(); }
+    function doSubmit() {
+      if (!valid()) { UI.toast(strokes && strokes.length === 0 ? 'Draw something first ✏️' : 'Type a guess first 💬'); return; }
+      const move = {};
+      if (guessInput) move.g = guessInput.value.trim().slice(0, 42);
+      if (strokes) move.d = packDrawing(strokes);
+      api.play(move);
+    }
+    update();
+  }
+
+  function renderDoodleSent(rootEl, api) {
+    const m = api.m, last = m[m.length - 1];
+    const wrap = h('div', { class: 'doodle' });
+    rootEl.append(wrap);
+    wrap.append(h('div', { class: 'cue' }, h('div', { class: 'cue-label' }, '✓ Locked in — no peeking at the answer!')));
+    if (last.g) wrap.append(h('div', { class: 'sent-guess' }, '💬 You guessed: ', h('b', {}, '“' + last.g + '”')));
+    if (last.d) { const c = doodleCanvas('doodle-view', 480); wrap.append(c); renderDrawing(c, unpackDrawing(last.d)); }
+    wrap.append(h('div', { class: 'hint' }, 'Send it over 👇 — it’s their turn now.'));
+  }
+
+  function renderDoodleReveal(rootEl, api) {
+    const m = api.m, seed = api.view.seed;
+    const wrap = h('div', { class: 'doodle reveal' });
+    rootEl.append(wrap);
+    wrap.append(h('div', { class: 'reveal-head' }, '🎨 The drift'));
+    const cap = (label, text, cls) => h('div', { class: 'drift-cap ' + cls },
+      h('div', { class: 'drift-cap-label' }, label), h('div', { class: 'drift-cap-text' }, '“' + text + '”'));
+    const draw = (dStr) => { const c = doodleCanvas('doodle-view small', 440); renderDrawing(c, unpackDrawing(dStr)); return h('div', { class: 'drift-draw' }, c); };
+    wrap.append(cap('✏️ The secret prompt was', doodlePrompt(seed), 'prompt'));
+    for (let k = 0; k < m.length; k++) {
+      if (k > 0 && m[k].g) wrap.append(cap('💬 …someone guessed', m[k].g, 'guess'));
+      if (m[k].d) wrap.append(draw(m[k].d));
+    }
+    wrap.append(h('div', { class: 'reveal-foot' }, '😂 No winners, no losers — just the beautiful mess above. Rematch for a new prompt!'));
+  }
+
+  const doodle = {
+    id: 'doodle', name: 'Doodle Drift', emoji: '🎨', mode: 'turns', tagLabel: 'Draw + guess',
+    blurb: 'Draw a secret prompt, guess each other’s scribbles, watch it drift into nonsense. No winners.',
+    colors: ['#6ea8ff', '#f4a24c'], pieceLabel: ['Player 1', 'Player 2'],
+    view: doodleView, legal: doodleLegal,
+    overText() { return '🎨 The big reveal!'; },
+    newTurnState(f) { return { g: 'doodle', v: 1, f, seed: (Math.floor(Math.random() * 1e9)) >>> 0, m: [] }; },
+    paint(rootEl, api) {
+      if (api.view.over) { renderDoodleReveal(rootEl, api); return; }
+      if (!api.canPlay) { renderDoodleSent(rootEl, api); return; }
+      renderDoodlePlay(rootEl, api);
+    },
+  };
+
+  root.GAMES = [grandprix, flappy, draft, ice, doodle, hex, connect4, gomoku];
 
   // exports for node tests
   if (typeof module !== 'undefined' && module.exports) {
@@ -1174,6 +1442,7 @@
       flappyGaps, FL,
       draftView, draftLegal, draftPicker, computeResults, rollFor, CARS, DRAFT, POSITIONS, ERAS,
       iceBoardGen, iceView, iceLegal, iceLegalMoveDirs, iceLegalBreaks, iceCascade,
+      doodleView, doodleLegal, doodlePrompt, packDrawing, unpackDrawing, DOODLE, DOODLE_PROMPTS,
     };
   }
 })(typeof window !== 'undefined' ? window : globalThis);

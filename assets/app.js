@@ -131,7 +131,7 @@
     screen.append(h('div', { class: 'status' },
       h('div', { class: 'you' }, 'You’re ', swatch, ' ', game.pieceLabel[me]),
       h('div', { class: 'turn ' + phase },
-        phase === 'play' ? 'Your move' : phase === 'sent' ? 'Move sent ✓' : resultText(v, me))));
+        phase === 'play' ? 'Your move' : phase === 'sent' ? 'Move sent ✓' : (game.overText ? game.overText(v, me) : resultText(v, me)))));
 
     // board
     const boardWrap = h('div', { class: 'board-wrap ' + game.id + (phase !== 'play' ? ' locked' : '') });

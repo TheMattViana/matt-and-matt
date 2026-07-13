@@ -92,6 +92,7 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 14px; padding: 13px 16px; font-size: 15px; font-weight: 600; width: 100%;
 }
 .btn:active { transform: scale(.985); }
+.btn:disabled { opacity: .45; transform: none; }
 .btn-primary { background: linear-gradient(180deg, #5c9bff, var(--accent2)); border-color: #3f6fd6; color: #fff; }
 .btn-primary.big { padding: 16px; font-size: 17px; border-radius: 16px; box-shadow: 0 6px 20px rgba(76,134,244,.28); }
 .btn-ghost { background: transparent; }
@@ -290,3 +291,40 @@ button { font-family: inherit; cursor: pointer; }
 .d-mid { grid-area: 2 / 2; display: grid; place-items: center; font-size: 26px; opacity: .6; }
 .d-right { grid-area: 2 / 3; }
 .d-down { grid-area: 3 / 2; }
+
+/* ================= DOODLE DRIFT ================= */
+.board-wrap.doodle { display: block; }
+.doodle { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+.doodle .cue { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; text-align: center; }
+.cue-label { color: var(--muted); font-size: 13px; font-weight: 600; }
+.cue-prompt { font-size: 23px; font-weight: 800; margin-top: 6px; letter-spacing: -.3px; line-height: 1.2; }
+.doodle-view {
+  width: 100%; max-width: 420px; margin: 0 auto; display: block; aspect-ratio: 1;
+  border-radius: 14px; border: 1px solid var(--line); background: #f7f5ef;
+}
+.doodle-view.small { max-width: 320px; }
+.doodle-canvas {
+  width: 100%; max-width: 420px; margin: 0 auto; display: block; aspect-ratio: 1;
+  border-radius: 14px; border: 2px solid var(--accent2); background: #f7f5ef;
+  touch-action: none; cursor: crosshair; box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+.field-label { font-weight: 700; font-size: 14px; color: var(--text); margin: 4px 2px -2px; }
+.doodle-input {
+  width: 100%; background: var(--card2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 12px; padding: 13px 14px; font-size: 17px; font-family: inherit;
+}
+.doodle-input::placeholder { color: var(--muted); }
+.doodle-input:focus { outline: none; border-color: var(--accent2); }
+.sketch-tools { display: flex; gap: 10px; }
+.sketch-tools .tool { width: auto; flex: 1; padding: 10px; font-size: 14px; }
+.sent-guess { text-align: center; font-size: 16px; }
+
+.doodle.reveal { gap: 10px; }
+.reveal-head { text-align: center; font-size: 22px; font-weight: 800; margin-bottom: 2px; }
+.drift-cap { border-left: 3px solid var(--accent2); background: var(--card); border-radius: 0 12px 12px 0; padding: 8px 13px; }
+.drift-cap.prompt { border-left-color: var(--good); }
+.drift-cap.guess { border-left-color: var(--accent); }
+.drift-cap-label { color: var(--muted); font-size: 12px; font-weight: 600; }
+.drift-cap-text { font-size: 17px; font-weight: 700; margin-top: 2px; }
+.drift-draw { display: flex; justify-content: center; padding: 2px 0; }
+.reveal-foot { text-align: center; color: var(--muted); font-size: 14px; margin-top: 8px; line-height: 1.5; }
