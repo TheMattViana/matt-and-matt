@@ -104,7 +104,7 @@
     const phase = v.over ? 'over' : (v.turn === me ? 'play' : 'sent');
 
     const api = {
-      m: st.m, f: st.f, view: v,
+      m: st.m, f: st.f, view: v, me: me,
       canPlay: phase === 'play',
       play(move) {
         if (v.over || v.turn !== me) return;

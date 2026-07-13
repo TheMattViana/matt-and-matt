@@ -14,11 +14,12 @@ Built for two people with nothing but their phones — one of them stuck in a ho
 | --- | --- |
 | 🏁 **Grand Prix** | Vector racing. Your car has *momentum* — nudge your speed and steer each turn, but carry too much into a hairpin and you spin out. You each drive the **same track solo**, and whoever finishes in **fewer moves wins**. Drive your run, text the track + your time (with a ghost of your racing line), and dare them to beat it. Every track is procedurally generated and guaranteed solvable. |
 | 🐤 **Flappy Duel** | Flap through the pipes. Both players face the **exact same pipes** (seeded), so it's a fair contest — **highest score wins**. Play your run, text your score, and dare them to beat it. |
+| 🏆 **Garage Draft** | Snake-draft real cars one pick at a time — **stats hidden, so you draft on car knowledge alone**. When both garages are full, a sim runs a season of events (Top Speed Shootout, Drag Race, Tow-Off, Off-Road Trial, Canyon Carving, Economy Run, Grand Prix) and crowns a champion. The full stat sheets are revealed at the end. Draft all supercars and you'll lose the Tow-Off — you need a well-rounded garage. |
 | ⬡ **Hex** | Connect your two sides of the board with an unbroken chain of your color. Dead-simple rules, genuinely bottomless strategy, and **it's impossible to draw** — someone always wins. A favorite among serious abstract-strategy players. |
 | 🔴 **Connect 4** | Drop discs, line up four. Quick and satisfying. |
 | ⚫ **Gomoku** | Five in a row on a big 15×15 board. Tic-tac-toe, all grown up. |
 
-Two of these (Grand Prix, Flappy Duel) are **solo-run duels** — you each take your shot on the same course and compare scores. The rest are **turn-by-turn**.
+Grand Prix and Flappy Duel are **solo-run duels** — you each take your shot on the same course and compare scores. The rest, including Garage Draft, are **turn-by-turn** (Garage Draft alternates picks, then simulates the season from the finished rosters).
 
 ## How a game flows
 

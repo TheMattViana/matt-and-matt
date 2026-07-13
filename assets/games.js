@@ -733,7 +733,229 @@
     },
   };
 
-  root.GAMES = [grandprix, flappy, hex, connect4, gomoku];
+  /* =====================================================================
+     GARAGE DRAFT (snake-draft cars, then simulate a season of events)
+     Stats are hidden during the draft — you pick on car knowledge alone —
+     and revealed in the results. Everything is a deterministic function of
+     the picks, so both players see identical outcomes from the shared link.
+     ===================================================================== */
+  const DRAFT = { team: 5 };
+  const CAR_EMOJI = {
+    Hypercar: '🏎️', Supercar: '🏎️', Sports: '🚗', Muscle: '🔥', Truck: '🛻',
+    'Off-road': '⛰️', 'Super SUV': '🚙', EV: '⚡', Economy: '🚘', 'Hot Hatch': '🚗',
+    Rally: '🏁', Wagon: '🚙',
+  };
+  // [name, class, SPD, ACC, HND, TOW, OFF, MPG]  (each 0–99)
+  const CARS = [
+    ['Bugatti Chiron', 'Hypercar', 99, 96, 82, 5, 5, 10],
+    ['Koenigsegg Jesko', 'Hypercar', 99, 98, 86, 5, 5, 12],
+    ['Rimac Nevera', 'Hypercar', 97, 99, 85, 10, 10, 90],
+    ['Ferrari SF90', 'Supercar', 92, 97, 90, 5, 8, 30],
+    ['Lamborghini Huracán', 'Supercar', 93, 94, 89, 5, 8, 18],
+    ['McLaren 720S', 'Supercar', 94, 95, 92, 5, 6, 22],
+    ['Porsche 911 Turbo S', 'Supercar', 90, 95, 93, 20, 15, 28],
+    ['Chevrolet Corvette C8', 'Sports', 88, 90, 88, 12, 12, 40],
+    ['Nissan GT-R', 'Sports', 88, 92, 87, 10, 10, 32],
+    ['Toyota GR Supra', 'Sports', 78, 82, 84, 10, 12, 45],
+    ['Porsche 718 Cayman GT4', 'Sports', 82, 84, 94, 10, 12, 42],
+    ['Mazda MX-5 Miata', 'Sports', 55, 58, 90, 8, 12, 62],
+    ['Subaru BRZ', 'Sports', 62, 66, 85, 8, 14, 55],
+    ['Dodge Challenger Hellcat', 'Muscle', 86, 90, 68, 25, 12, 20],
+    ['Chevrolet Camaro ZL1', 'Muscle', 84, 88, 82, 22, 12, 30],
+    ['Ford Mustang GT', 'Muscle', 80, 84, 76, 20, 14, 38],
+    ['Dodge Charger Hellcat', 'Muscle', 85, 88, 66, 30, 14, 22],
+    ['Ford F-150 Raptor', 'Truck', 60, 66, 55, 78, 95, 28],
+    ['Ram 1500 TRX', 'Truck', 68, 78, 58, 82, 92, 20],
+    ['Chevrolet Silverado HD', 'Truck', 55, 52, 50, 95, 65, 26],
+    ['Ford F-250 Super Duty', 'Truck', 50, 45, 45, 99, 72, 22],
+    ['Toyota Tacoma TRD', 'Truck', 52, 55, 58, 60, 88, 40],
+    ['GMC Hummer EV', 'Truck', 62, 90, 50, 75, 90, 55],
+    ['Jeep Wrangler Rubicon', 'Off-road', 48, 52, 55, 45, 97, 38],
+    ['Ford Bronco', 'Off-road', 55, 60, 60, 50, 90, 40],
+    ['Land Rover Defender', 'Off-road', 62, 66, 64, 65, 88, 42],
+    ['Toyota Land Cruiser', 'Off-road', 60, 60, 60, 72, 90, 38],
+    ['Mercedes-AMG G63', 'Off-road', 72, 82, 62, 65, 85, 22],
+    ['Lamborghini Urus', 'Super SUV', 85, 88, 80, 55, 55, 30],
+    ['Porsche Cayenne Turbo', 'Super SUV', 82, 84, 82, 60, 55, 32],
+    ['Tesla Model S Plaid', 'EV', 90, 99, 80, 40, 20, 95],
+    ['Tesla Model 3', 'EV', 72, 82, 78, 20, 18, 96],
+    ['Porsche Taycan', 'EV', 84, 92, 86, 30, 20, 88],
+    ['Lucid Air', 'EV', 86, 94, 80, 35, 18, 94],
+    ['Toyota Prius', 'Economy', 40, 42, 50, 10, 15, 99],
+    ['Honda Civic', 'Economy', 50, 52, 66, 12, 18, 85],
+    ['Toyota Corolla', 'Economy', 44, 46, 58, 12, 18, 88],
+    ['Volkswagen Golf GTI', 'Hot Hatch', 68, 74, 80, 15, 20, 60],
+    ['Subaru WRX STI', 'Rally', 70, 78, 82, 20, 45, 42],
+    ['Audi RS6 Avant', 'Wagon', 84, 90, 84, 45, 25, 35],
+  ];
+  const STAT_ABBR = ['SPD', 'ACC', 'HND', 'TOW', 'OFF', 'MPG'];
+  const DRAFT_EVENTS = [
+    { name: 'Top Speed Shootout', emoji: '🏁', stat: 0, mode: 'best', tag: 'fastest car' },
+    { name: 'Drag Race', emoji: '⚡', stat: 1, mode: 'best', tag: 'quickest car' },
+    { name: 'Tow-Off', emoji: '🚚', stat: 3, mode: 'best', tag: 'biggest hauler' },
+    { name: 'Off-Road Trial', emoji: '⛰️', stat: 4, mode: 'best', tag: 'best rig' },
+    { name: 'Canyon Carving', emoji: '🌀', stat: 2, mode: 'avg', tag: 'team handling avg' },
+    { name: 'Economy Run', emoji: '⛽', stat: 5, mode: 'avg', tag: 'team MPG avg' },
+    { name: 'Grand Prix', emoji: '🏆', mode: 'gp', tag: 'all-round avg' },
+  ];
+  function carStat(ci, s) { return CARS[ci][2 + s]; }
+  function gpComposite(ci) { return 0.4 * carStat(ci, 0) + 0.35 * carStat(ci, 1) + 0.25 * carStat(ci, 2); }
+  function draftPicker(k, f) { const pair = Math.floor(k / 2); const first = (pair % 2 === 0) ? f : 1 - f; return (k % 2 === 0) ? first : 1 - first; }
+  function draftHash(m) { let x = 2166136261; for (const v of m) { x ^= (v + 1); x = Math.imul(x, 16777619); } return x >>> 0; }
+  function teamScore(team, ev) {
+    if (ev.mode === 'best') {
+      let best = -1, car = -1;
+      for (const ci of team) { const v = carStat(ci, ev.stat); if (v > best) { best = v; car = ci; } }
+      return { score: best, car };
+    }
+    if (ev.mode === 'avg') {
+      let sum = 0; for (const ci of team) sum += carStat(ci, ev.stat);
+      return { score: team.length ? sum / team.length : 0 };
+    }
+    let sum = 0, best = -1, car = -1;
+    for (const ci of team) { const c = gpComposite(ci); sum += c; if (c > best) { best = c; car = ci; } }
+    return { score: team.length ? sum / team.length : 0, car };
+  }
+  function computeResults(teams, m) {
+    const rnd = root.UI.mulberry32(draftHash(m));
+    const events = DRAFT_EVENTS.map((ev) => {
+      const a = teamScore(teams[0], ev), b = teamScore(teams[1], ev);
+      const fa = a.score + (rnd() * 5 - 2.5), fb = b.score + (rnd() * 5 - 2.5); // small sim variance
+      const winner = Math.abs(fa - fb) < 0.01 ? null : (fa > fb ? 0 : 1);
+      return { ev, a, b, fa, fb, winner };
+    });
+    let w0 = 0, w1 = 0, t0 = 0, t1 = 0;
+    for (const e of events) { if (e.winner === 0) w0++; else if (e.winner === 1) w1++; t0 += e.fa; t1 += e.fb; }
+    const winner = w0 > w1 ? 0 : w1 > w0 ? 1 : (t0 > t1 ? 0 : t1 > t0 ? 1 : null);
+    return { events, w0, w1, winner };
+  }
+  function draftView(m, f) {
+    const total = DRAFT.team * 2;
+    const teams = [[], []];
+    for (let k = 0; k < m.length; k++) teams[draftPicker(k, f)].push(m[k]);
+    const over = m.length >= total;
+    const results = over ? computeResults(teams, m) : null;
+    return {
+      teams, over, results, total, TEAM: DRAFT.team, pickNo: m.length,
+      turn: over ? null : draftPicker(m.length, f),
+      lastMover: m.length ? draftPicker(m.length - 1, f) : null,
+      winner: results ? results.winner : null,
+    };
+  }
+  function draftLegal(m, f, idx) {
+    return !draftView(m, f).over && idx >= 0 && idx < CARS.length && m.indexOf(idx) === -1;
+  }
+  const draft = {
+    id: 'draft', name: 'Garage Draft', emoji: '🏆', mode: 'turns', tagLabel: 'Draft + sim',
+    blurb: 'Snake-draft real cars, then a sim runs races, tow-offs & more. Best garage wins.',
+    colors: ['#4c86f4', '#f4544c'], pieceLabel: ['Team Blue', 'Team Red'],
+    view: draftView, legal: draftLegal, CARS, DRAFT_EVENTS, computeResults, draftPicker,
+    paint(rootEl, api) {
+      const v = api.view, me = api.me;
+      const cont = h('div', { class: 'draft' });
+      if (!v.over) this.paintDraft(cont, api, v, me);
+      else this.paintResults(cont, api, v, me);
+      rootEl.append(cont);
+    },
+    paintDraft(cont, api, v, me) {
+      const round = Math.floor(v.pickNo / 2) + 1;
+      cont.append(h('div', { class: 'draft-head' },
+        h('span', {}, 'Pick ' + (v.pickNo + 1) + ' / ' + v.total),
+        h('span', {}, 'Round ' + round + ' of ' + v.TEAM)));
+
+      // rosters
+      const rost = h('div', { class: 'draft-rosters' });
+      [0, 1].forEach((p) => {
+        const col = h('div', { class: 'roster' + (p === me ? ' you' : '') });
+        col.style.borderColor = this.colors[p];
+        col.append(h('div', { class: 'roster-title' },
+          (p === me ? 'You · ' : '') + this.pieceLabel[p], h('span', { class: 'roster-count' }, v.teams[p].length + '/' + v.TEAM)));
+        if (!v.teams[p].length) col.append(h('div', { class: 'roster-empty' }, 'No picks yet'));
+        v.teams[p].forEach((ci) => col.append(h('div', { class: 'chip' },
+          CAR_EMOJI[CARS[ci][1]] + ' ' + CARS[ci][0])));
+        rost.append(col);
+      });
+      cont.append(rost);
+
+      // available pool (no numbers — knowledge test)
+      const taken = new Set(api.m);
+      cont.append(h('div', { class: 'pool-head' }, api.canPlay ? '🔎 Draft a car' : 'Pool (waiting…)'));
+      const pool = h('div', { class: 'pool' });
+      for (let ci = 0; ci < CARS.length; ci++) {
+        if (taken.has(ci)) continue;
+        const c = CARS[ci];
+        const item = h('button', {
+          class: 'pool-item' + (api.canPlay ? ' live' : ''),
+          disabled: api.canPlay ? null : 'disabled',
+          onclick: api.canPlay ? () => api.play(ci) : null,
+        },
+          h('span', { class: 'car-emoji' }, CAR_EMOJI[c[1]]),
+          h('span', { class: 'car-main' },
+            h('span', { class: 'car-name' }, c[0]),
+            h('span', { class: 'car-class' }, c[1])));
+        pool.append(item);
+      }
+      cont.append(pool);
+    },
+    paintResults(cont, api, v, me) {
+      const r = v.results;
+      const myWins = me === 0 ? r.w0 : r.w1, oppWins = me === 0 ? r.w1 : r.w0;
+      const verdict = r.winner == null ? '🤝 It’s a tie' : r.winner === me ? '🏆 You win the season!' : '😤 Opponent wins the season';
+      cont.append(h('div', { class: 'result-banner' },
+        h('div', { class: 'result-verdict' }, verdict),
+        h('div', { class: 'result-score' }, 'You ' + myWins + ' — ' + oppWins + ' Them')));
+
+      // event-by-event
+      const evwrap = h('div', { class: 'events' });
+      r.events.forEach((e) => {
+        const aVal = e.ev.mode === 'best' ? String(carStat(e.a.car, e.ev.stat)) : e.a.score.toFixed(1);
+        const bVal = e.ev.mode === 'best' ? String(carStat(e.b.car, e.ev.stat)) : e.b.score.toFixed(1);
+        const aCar = (e.ev.mode !== 'avg' && e.a.car != null && e.a.car >= 0) ? CARS[e.a.car][0] : e.ev.tag;
+        const bCar = (e.ev.mode !== 'avg' && e.b.car != null && e.b.car >= 0) ? CARS[e.b.car][0] : e.ev.tag;
+        // map absolute team index 0/1 to your/opp columns (left = you)
+        const left = me, rightP = 1 - me;
+        const val = (p) => p === 0 ? aVal : bVal;
+        const car = (p) => p === 0 ? aCar : bCar;
+        const winP = e.winner; // 0/1 absolute
+        evwrap.append(h('div', { class: 'event-card' },
+          h('div', { class: 'event-title' }, e.ev.emoji + ' ' + e.ev.name),
+          h('div', { class: 'event-vs' },
+            h('div', { class: 'side' + (winP === left ? ' win' : '') + (winP == null ? ' tie' : '') },
+              h('span', { class: 'side-val' }, val(left)),
+              h('span', { class: 'side-car' }, car(left))),
+            h('div', { class: 'vs' }, winP === left ? '◀' : winP === rightP ? '▶' : '='),
+            h('div', { class: 'side right' + (winP === rightP ? ' win' : '') + (winP == null ? ' tie' : '') },
+              h('span', { class: 'side-val' }, val(rightP)),
+              h('span', { class: 'side-car' }, car(rightP))))));
+      });
+      cont.append(evwrap);
+
+      // full stat sheets (the reveal)
+      cont.append(h('div', { class: 'pool-head' }, '📋 The stat sheets'));
+      [me, 1 - me].forEach((p) => {
+        const tbl = h('table', { class: 'statsheet' });
+        const head = h('tr', {}, h('th', { class: 'sh-name' }, (p === me ? 'Your' : 'Their') + ' garage'));
+        STAT_ABBR.forEach((s) => head.append(h('th', {}, s)));
+        tbl.append(head);
+        v.teams[p].forEach((ci) => {
+          const row = h('tr', {}, h('td', { class: 'sh-name' }, CAR_EMOJI[CARS[ci][1]] + ' ' + CARS[ci][0]));
+          for (let s = 0; s < 6; s++) {
+            const val = carStat(ci, s);
+            const td = h('td', {}, String(val));
+            td.style.color = val >= 85 ? '#7ee0a1' : val <= 30 ? '#ff9f8a' : '';
+            row.append(td);
+          }
+          tbl.append(row);
+        });
+        const wrap = h('div', { class: 'sheet-wrap' });
+        wrap.append(h('div', { class: 'sheet-label' }, (p === me ? 'You · ' : '') + this.pieceLabel[p]));
+        wrap.append(tbl);
+        cont.append(wrap);
+      });
+    },
+  };
+
+  root.GAMES = [grandprix, flappy, draft, hex, connect4, gomoku];
 
   // exports for node tests
   if (typeof module !== 'undefined' && module.exports) {
@@ -741,6 +963,7 @@
       c4View, c4Legal, goView, goLegal, hexView, hexLegal, hexNeighbors, hexWinner,
       makeTrack, onTrack, segmentOnTrack, raceLegalNext, raceFinished, RACE,
       flappyGaps, FL,
+      draftView, draftLegal, draftPicker, computeResults, CARS, DRAFT, DRAFT_EVENTS,
     };
   }
 })(typeof window !== 'undefined' ? window : globalThis);
