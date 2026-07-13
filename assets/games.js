@@ -1008,47 +1008,45 @@
      same way — if they slide off the floe into the water, you win.
      ===================================================================== */
   const ICE_DIR = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // Up, Right, Down, Left
+  const ICE = { N: 6, K: 2, starts: [[3, 2], [2, 3]] };  // small floe, central starts, one-step moves
   function iceBoardGen(seed) {
-    const N = 7;
+    const N = ICE.N;
     const rnd = root.UI.mulberry32((seed ^ 0x51ce) >>> 0);
-    const starts = [[4, 2], [2, 4]];                    // 180°-symmetric, diagonal (no turn-1 KO)
+    const starts = ICE.starts.map((s) => s.slice());     // 180°-symmetric, diagonal (no turn-1 KO)
     const mir = (r, c) => [N - 1 - r, N - 1 - c];
     const blocked = new Set();
     const bx = (r, c) => blocked.add(r * N + c);
     for (const s of starts) { bx(s[0], s[1]); for (const d of ICE_DIR) { const nr = s[0] + d[0], nc = s[1] + d[1]; if (nr >= 0 && nr < N && nc >= 0 && nc < N) bx(nr, nc); } }
-    bx(3, 3);
     const cands = [];
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
       const id = r * N + c, m = mir(r, c), mid = m[0] * N + m[1];
-      if (id >= mid) continue;                          // one representative per mirrored pair
+      if (id >= mid) continue;                          // one representative per mirrored pair (skips self-mirror)
       if (blocked.has(id) || blocked.has(mid)) continue;
       cands.push([r, c]);
     }
     for (let i = cands.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = cands[i]; cands[i] = cands[j]; cands[j] = t; }
     const ice = new Set();
-    const K = 3;                                        // 3 pairs -> 6 ice blocks (cover to hide behind)
-    for (let i = 0; i < Math.min(K, cands.length); i++) { const r = cands[i][0], c = cands[i][1]; ice.add(r * N + c); const m = mir(r, c); ice.add(m[0] * N + m[1]); }
-    return { N, ice, starts: [starts[0].slice(), starts[1].slice()] };
+    for (let i = 0; i < Math.min(ICE.K, cands.length); i++) { const r = cands[i][0], c = cands[i][1]; ice.add(r * N + c); const m = mir(r, c); ice.add(m[0] * N + m[1]); }
+    return { N, ice, starts };
   }
+  // One step per turn. Step into the opponent to push them one cell (and follow
+  // into their square). A move that can't happen (off-board, into ice, or a shove
+  // that's backstopped by ice) has no effect -> illegal.
   function iceResolve(posP, posO, dir, ice, N) {
     const dr = ICE_DIR[dir][0], dc = ICE_DIR[dir][1];
-    let cur = posP;
-    const trail = [[posP[0], posP[1]]];
-    while (true) {
-      const nr = cur[0] + dr, nc = cur[1] + dc;
-      const moved = (cur[0] !== posP[0] || cur[1] !== posP[1]);
-      if (nr < 0 || nr >= N || nc < 0 || nc >= N) return { mover: cur, trail, oPos: posO, oTrail: null, ko: false, moved, collided: false, effect: moved };
-      if (ice.has(nr * N + nc)) return { mover: cur, trail, oPos: posO, oTrail: null, ko: false, moved, collided: false, effect: moved };
-      if (nr === posO[0] && nc === posO[1]) {           // shove the opponent ONE cell
-        const orr = posO[0] + dr, occ = posO[1] + dc;
-        if (orr < 0 || orr >= N || occ < 0 || occ >= N)     // pushed off the floe
-          return { mover: cur, trail, oPos: null, oTrail: [[posO[0], posO[1]], [orr, occ]], ko: true, moved, collided: true, effect: true };
-        if (ice.has(orr * N + occ))                          // backstopped by ice — they don't budge
-          return { mover: cur, trail, oPos: [posO[0], posO[1]], oTrail: [[posO[0], posO[1]]], ko: false, moved, collided: true, effect: moved };
-        return { mover: cur, trail, oPos: [orr, occ], oTrail: [[posO[0], posO[1]], [orr, occ]], ko: false, moved, collided: true, effect: true };
-      }
-      cur = [nr, nc]; trail.push([nr, nc]);
+    const nr = posP[0] + dr, nc = posP[1] + dc;
+    const none = { mover: posP, trail: [[posP[0], posP[1]]], oPos: posO, oTrail: null, ko: false, moved: false, collided: false, effect: false };
+    if (nr < 0 || nr >= N || nc < 0 || nc >= N) return none;   // can't step off the floe yourself
+    if (ice.has(nr * N + nc)) return none;                     // blocked by ice
+    if (nr === posO[0] && nc === posO[1]) {                    // step into opponent -> shove one cell
+      const orr = posO[0] + dr, occ = posO[1] + dc;
+      const trail = [[posP[0], posP[1]], [nr, nc]];
+      if (orr < 0 || orr >= N || occ < 0 || occ >= N)          // shoved off the edge -> KO
+        return { mover: [nr, nc], trail, oPos: null, oTrail: [[posO[0], posO[1]], [orr, occ]], ko: true, moved: true, collided: true, effect: true };
+      if (ice.has(orr * N + occ)) return { mover: posP, trail: [[posP[0], posP[1]]], oPos: posO, oTrail: null, ko: false, moved: false, collided: true, effect: false }; // backstopped
+      return { mover: [nr, nc], trail, oPos: [orr, occ], oTrail: [[posO[0], posO[1]], [orr, occ]], ko: false, moved: true, collided: true, effect: true };
     }
+    return { mover: [nr, nc], trail: [[posP[0], posP[1]], [nr, nc]], oPos: posO, oTrail: null, ko: false, moved: true, collided: false, effect: true };
   }
   function iceView(m, f, st) {
     st = st || {};
