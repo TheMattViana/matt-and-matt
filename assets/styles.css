@@ -254,18 +254,19 @@ button { font-family: inherit; cursor: pointer; }
   position: relative; border-radius: 8px; display: grid; place-items: center;
   background: linear-gradient(160deg, #dcefff, #b7d9f2); box-shadow: inset 0 -2px 3px rgba(90,130,170,.35);
 }
-/* cracked = thin ice you can't step on (but can be shoved onto -> you fall through) */
-.ice-cell.cracked { background: linear-gradient(160deg, #3c5f82, #24425e); box-shadow: inset 0 0 7px rgba(0,0,0,.5); }
-.ice-cell.cracked::before, .ice-cell.cracked::after {
-  content: ''; position: absolute; height: 2px; background: rgba(9,18,30,.75); border-radius: 2px;
-}
-.ice-cell.cracked::before { width: 74%; left: 13%; top: 44%; transform: rotate(23deg); }
-.ice-cell.cracked::after { width: 58%; left: 24%; top: 62%; transform: rotate(-38deg); }
-/* hole = open water where a penguin fell through */
+/* hole = broken block (open water) */
 .ice-cell.hole { background: radial-gradient(circle at 50% 45%, #0a1c30, #05101c); box-shadow: inset 0 0 12px #000; }
-.ice-cell.hole::after { content: '💧'; position: absolute; font-size: 60%; opacity: .85; }
-/* last move outline (works over solid or cracked) */
-.ice-cell.trail { outline: 2px solid rgba(255,255,255,.55); outline-offset: -2px; border-radius: 8px; }
+.ice-cell.just-broke { outline: 2px solid rgba(255,255,255,.4); outline-offset: -2px; }
+/* move targets (phase 1) */
+.ice-cell.target { cursor: pointer; box-shadow: inset 0 0 0 3px #7ee0a1, inset 0 -2px 3px rgba(90,130,170,.35); }
+.ice-cell.target:active { background: linear-gradient(160deg, #cdeed4, #a7dbb4); }
+/* breakable blocks (phase 2) + killshot */
+.ice-cell.breakable { cursor: pointer; box-shadow: inset 0 0 0 2px rgba(244,84,76,.55), inset 0 -2px 3px rgba(90,130,170,.35); }
+.ice-cell.breakable:active { background: linear-gradient(160deg, #f3c9c6, #e7a49f); }
+.ice-cell.killshot { box-shadow: inset 0 0 0 3px #f4544c; }
+.ice-cell.killshot::after { content: '💥'; position: absolute; font-size: 62%; }
+.ice-controls { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; align-items: center; width: 100%; }
+.ice-controls .btn { max-width: 300px; }
 .peng {
   position: absolute; inset: 8%; display: grid; place-items: center; font-size: min(6.2vw, 30px);
   border-radius: 50%; background: radial-gradient(circle at 50% 35%, #ffffff, var(--pc));

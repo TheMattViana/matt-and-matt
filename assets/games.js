@@ -1002,18 +1002,18 @@
     },
   };
   /* =====================================================================
-     ICEBREAKER (step-and-shove — the ice breaks as you play)
-     One step per turn; stepping into your rival shoves them one square. Every
-     square a penguin steps off of CRACKS. You can't step onto cracked ice (you
-     would fall), but shove your rival onto cracked ice — or off the edge — and
-     they plunge through. Boxed in with no safe step of your own? You go under.
+     ICEBREAKER (move, then break a block — strand your rival to sink them)
+     Each turn is two actions: (1) move your penguin one square (or stay),
+     (2) break any one block on the map (never one a penguin is standing on).
+     No floating blocks: a penguin whose every neighbour is broken (or the
+     edge) has nothing holding it up and falls through. Trap your rival.
      ===================================================================== */
   const ICE_DIR = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // Up, Right, Down, Left
-  const ICE = { N: 6, patches: 2, starts: [[2, 2], [3, 3]] }; // patches = pairs of pre-cracked "thin ice"
+  const ICE = { N: 6, patches: 2, starts: [[2, 2], [3, 3]] }; // patches = pairs of pre-broken holes
   function iceBoardGen(seed) {
     const N = ICE.N;
     const rnd = root.UI.mulberry32((seed ^ 0x51ce) >>> 0);
-    const starts = ICE.starts.map((s) => s.slice());          // 180°-symmetric, central, diagonal
+    const starts = ICE.starts.map((s) => s.slice());
     const mir = (r, c) => [N - 1 - r, N - 1 - c];
     const blocked = new Set();
     const bx = (r, c) => blocked.add(r * N + c);
@@ -1021,99 +1021,147 @@
     const cands = [];
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
       const id = r * N + c, m = mir(r, c), mid = m[0] * N + m[1];
-      if (id >= mid) continue;                                 // one representative per mirrored pair
+      if (id >= mid) continue;
       if (blocked.has(id) || blocked.has(mid)) continue;
       cands.push([r, c]);
     }
     for (let i = cands.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = cands[i]; cands[i] = cands[j]; cands[j] = t; }
-    const cracked0 = new Set();
-    for (let i = 0; i < Math.min(ICE.patches, cands.length); i++) { const r = cands[i][0], c = cands[i][1]; cracked0.add(r * N + c); const m = mir(r, c); cracked0.add(m[0] * N + m[1]); }
-    return { N, starts, cracked0 };
+    const water0 = new Set();
+    for (let i = 0; i < Math.min(ICE.patches, cands.length); i++) { const r = cands[i][0], c = cands[i][1]; water0.add(r * N + c); const m = mir(r, c); water0.add(m[0] * N + m[1]); }
+    return { N, starts, water0 };
   }
-  // One step per turn; the mover always advances one square. The square the
-  // mover leaves cracks. Stepping into the opponent shoves them one square:
-  // off the edge or onto cracked ice = they fall through (KO).
-  function iceResolve(posP, posO, dir, cracked, N) {
-    const dr = ICE_DIR[dir][0], dc = ICE_DIR[dir][1];
-    const nr = posP[0] + dr, nc = posP[1] + dc;
-    const leave = posP[0] * N + posP[1];
-    const none = { mover: posP, oPos: posO, trail: [[posP[0], posP[1]]], cracks: [], ko: false, effect: false, hole: null };
-    if (nr < 0 || nr >= N || nc < 0 || nc >= N) return none;            // can't step off the floe yourself
-    if (nr === posO[0] && nc === posO[1]) {                             // step into opponent -> shove one square
-      const orr = posO[0] + dr, occ = posO[1] + dc;
-      const trail = [[posP[0], posP[1]], [nr, nc]];
-      if (orr < 0 || orr >= N || occ < 0 || occ >= N)                  // shoved off the edge
-        return { mover: [nr, nc], oPos: null, trail, cracks: [leave], ko: true, effect: true, hole: null };
-      if (cracked.has(orr * N + occ))                                   // shoved onto thin ice -> falls through
-        return { mover: [nr, nc], oPos: null, trail, cracks: [leave], ko: true, effect: true, hole: orr * N + occ };
-      return { mover: [nr, nc], oPos: [orr, occ], trail, cracks: [leave], ko: false, effect: true, hole: null };
+  // Sink any solid block that has no solid neighbour ("no floating blocks").
+  // Mutates `water`; returns which of the two penguins fell through.
+  function iceCascade(water, N, pos) {
+    const fell = [false, false];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let id = 0; id < N * N; id++) {
+        if (water.has(id)) continue;
+        const r = Math.floor(id / N), c = id % N;
+        let supported = false;
+        for (const d of ICE_DIR) { const nr = r + d[0], nc = c + d[1]; if (nr >= 0 && nr < N && nc >= 0 && nc < N && !water.has(nr * N + nc)) { supported = true; break; } }
+        if (!supported) {
+          water.add(id); changed = true;
+          if (pos[0] && pos[0][0] === r && pos[0][1] === c) fell[0] = true;
+          if (pos[1] && pos[1][0] === r && pos[1][1] === c) fell[1] = true;
+        }
+      }
     }
-    if (cracked.has(nr * N + nc)) return none;                          // won't step onto thin ice
-    return { mover: [nr, nc], oPos: posO, trail: [[posP[0], posP[1]], [nr, nc]], cracks: [leave], ko: false, effect: true, hole: null };
+    return fell;
+  }
+  function iceLegalMoveDirs(selfPos, oppPos, water, N) {
+    const out = [];
+    for (let d = 0; d < 4; d++) {
+      const nr = selfPos[0] + ICE_DIR[d][0], nc = selfPos[1] + ICE_DIR[d][1];
+      if (nr < 0 || nr >= N || nc < 0 || nc >= N) continue;
+      if (water.has(nr * N + nc)) continue;
+      if (oppPos && nr === oppPos[0] && nc === oppPos[1]) continue;
+      out.push(d);
+    }
+    return out;
+  }
+  function iceLegalBreaks(selfPos, oppPos, water, N) {
+    const out = [];
+    for (let id = 0; id < N * N; id++) {
+      if (water.has(id)) continue;
+      const r = Math.floor(id / N), c = id % N;
+      if (selfPos && r === selfPos[0] && c === selfPos[1]) continue;    // can't break where a penguin stands
+      if (oppPos && r === oppPos[0] && c === oppPos[1]) continue;
+      const w2 = new Set(water); w2.add(id);
+      if (iceCascade(w2, N, [selfPos, oppPos])[0]) continue;            // never break in a way that sinks yourself
+      out.push(id);
+    }
+    return out;
   }
   function iceView(m, f, st) {
     st = st || {};
     const B = iceBoardGen(st.seed || 0), N = B.N;
-    const cracked = new Set(B.cracked0);
+    const water = new Set(B.water0);
     let pos = [B.starts[0].slice(), B.starts[1].slice()];
-    let over = false, winner = null, lastTrail = null, lastCracks = null, hole = null;
+    let over = false, winner = null, lastBreak = null, lastMove = null, lastMover = null;
     for (let k = 0; k < m.length && !over; k++) {
-      const p = (f + k) % 2, o = 1 - p;
-      const res = iceResolve(pos[p], pos[o], m[k], cracked, N);
-      if (!res.effect) continue;                                       // ignore a recorded illegal move (shouldn't happen)
-      pos[p] = [res.mover[0], res.mover[1]];
-      for (const cid of res.cracks) cracked.add(cid);
-      lastTrail = res.trail; lastCracks = res.cracks; hole = res.hole;
-      if (res.ko) { over = true; winner = p; pos[o] = null; } else pos[o] = [res.oPos[0], res.oPos[1]];
+      const p = (f + k) % 2, o = 1 - p, md = m[k][0], bid = m[k][1];
+      if (md >= 0) pos[p] = [pos[p][0] + ICE_DIR[md][0], pos[p][1] + ICE_DIR[md][1]];
+      water.add(bid);
+      const fell = iceCascade(water, N, pos);
+      lastBreak = bid; lastMove = md; lastMover = p;
+      if (fell[o]) { over = true; winner = p; pos[o] = null; }
+      else if (fell[p]) { over = true; winner = o; pos[p] = null; }
     }
     let turn = over ? null : (f + m.length) % 2;
-    const legalDirs = [false, false, false, false];
+    let legalMoveDirs = [], legalBreaksFromHere = [];
     if (!over) {
-      const p = turn, o = 1 - p;
-      for (let d = 0; d < 4; d++) legalDirs[d] = iceResolve(pos[p], pos[o], d, cracked, N).effect;
-      if (!legalDirs.some(Boolean)) { over = true; winner = 1 - turn; turn = null; }   // stranded on thin ice
+      legalMoveDirs = iceLegalMoveDirs(pos[turn], pos[1 - turn], water, N);
+      legalBreaksFromHere = iceLegalBreaks(pos[turn], pos[1 - turn], water, N);
+      if (legalBreaksFromHere.length === 0) { over = true; winner = 1 - turn; turn = null; }  // no safe block to break -> stranded
     }
     return {
-      N, cracked, pos, over, winner, turn, legalDirs, lastTrail, lastCracks, hole,
+      N, water, pos, over, winner, turn, legalMoveDirs, lastBreak, lastMove,
       lastMover: m.length ? (f + m.length - 1) % 2 : null,
     };
   }
-  function iceLegal(m, f, dir, st) { const v = iceView(m, f, st); return !v.over && !!v.legalDirs[dir]; }
+  function iceLegal(m, f, move, st) {
+    const v = iceView(m, f, st); if (v.over) return false;
+    const N = v.N, p = v.turn, o = 1 - p, md = move[0], bid = move[1];
+    let selfPos = v.pos[p].slice();
+    if (md >= 0) {
+      if (!iceLegalMoveDirs(v.pos[p], v.pos[o], v.water, N).includes(md)) return false;
+      selfPos = [selfPos[0] + ICE_DIR[md][0], selfPos[1] + ICE_DIR[md][1]];
+    }
+    return iceLegalBreaks(selfPos, v.pos[o], v.water, N).includes(bid);
+  }
   const ice = {
-    id: 'ice', name: 'Icebreaker', emoji: '🐧', mode: 'turns', tagLabel: 'Break the ice',
-    blurb: 'Every step cracks the ice behind you. Shove your rival through a crack or off the floe — don’t get boxed in.',
+    id: 'ice', name: 'Icebreaker', emoji: '🐧', mode: 'turns', tagLabel: 'Move + break',
+    blurb: 'Move one square, then break a block anywhere. Strand your rival so the ice gives way under them.',
     colors: ['#4c86f4', '#f4544c'], pieceLabel: ['Blue', 'Red'],
-    view: iceView, legal: iceLegal, iceResolve, iceBoardGen,
-    newTurnState(f) { return { g: 'ice', v: 2, f, seed: (Math.floor(Math.random() * 1e9)) >>> 0, m: [] }; },
+    view: iceView, legal: iceLegal, iceBoardGen, iceLegalMoveDirs, iceLegalBreaks, iceCascade,
+    newTurnState(f) { return { g: 'ice', v: 3, f, seed: (Math.floor(Math.random() * 1e9)) >>> 0, m: [] }; },
     paint(rootEl, api) {
-      const v = api.view, N = v.N;
-      const board = h('div', { class: 'ice-board', style: { '--n': String(N) } });
-      const inTrail = (t, r, c) => t && t.some((x) => x[0] === r && x[1] === c);
-      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-        const id = r * N + c;
-        const cell = h('div', {
-          class: 'ice-cell' + (v.cracked.has(id) ? ' cracked' : '') + (id === v.hole ? ' hole' : '') + (inTrail(v.lastTrail, r, c) ? ' trail' : ''),
-        });
-        for (const p of [0, 1]) {
-          if (v.pos[p] && v.pos[p][0] === r && v.pos[p][1] === c) {
-            const peng = h('div', { class: 'peng' + (p === api.me ? ' mine' : '') }, '🐧');
-            peng.style.setProperty('--pc', this.colors[p]);
-            cell.append(peng);
+      const v = api.view, N = v.N, me = api.me, colors = this.colors;
+      const canPlay = api.canPlay && !v.over;
+      const boardWrap = h('div', { class: 'ice-boardwrap' });
+      const controls = h('div', { class: 'ice-controls' });
+      rootEl.append(boardWrap); rootEl.append(controls);
+
+      let phase = 'move', moveDir = null, previewPos = v.pos[me] ? v.pos[me].slice() : null;
+
+      const addPeng = (cell, p, mine) => { const pg = h('div', { class: 'peng' + (mine ? ' mine' : '') }, '🐧'); pg.style.setProperty('--pc', colors[p]); cell.append(pg); };
+
+      function render() {
+        UI.clear(boardWrap); UI.clear(controls);
+        const board = h('div', { class: 'ice-board', style: { '--n': String(N) } });
+        const moveTargets = new Map();
+        if (canPlay && phase === 'move') for (const d of v.legalMoveDirs) moveTargets.set((v.pos[me][0] + ICE_DIR[d][0]) * N + (v.pos[me][1] + ICE_DIR[d][1]), d);
+        const breaks = (canPlay && phase === 'break') ? iceLegalBreaks(previewPos, v.pos[1 - me], v.water, N) : [];
+        const breakSet = new Set(breaks);
+        const myDisp = (canPlay && phase === 'break' && previewPos) ? previewPos : v.pos[me];
+        for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+          const id = r * N + c;
+          const cell = h('div', { class: 'ice-cell' + (v.water.has(id) ? ' hole' : '') + (id === v.lastBreak ? ' just-broke' : '') });
+          if (v.pos[1 - me] && v.pos[1 - me][0] === r && v.pos[1 - me][1] === c) addPeng(cell, 1 - me, false);
+          if (myDisp && myDisp[0] === r && myDisp[1] === c) addPeng(cell, me, true);
+          if (moveTargets.has(id)) { cell.classList.add('target'); const d = moveTargets.get(id); cell.addEventListener('click', () => { moveDir = d; previewPos = [r, c]; phase = 'break'; render(); }); }
+          else if (breakSet.has(id)) {
+            cell.classList.add('breakable');
+            const w2 = new Set(v.water); w2.add(id);
+            if (iceCascade(w2, N, [previewPos, v.pos[1 - me]])[1]) cell.classList.add('killshot');
+            cell.addEventListener('click', () => api.play([moveDir, id]));
           }
+          board.append(cell);
         }
-        board.append(cell);
+        boardWrap.append(board);
+        if (!canPlay) return;
+        if (phase === 'move') {
+          controls.append(h('div', { class: 'hint' }, '① Move — tap a bright square, or stay put.'));
+          controls.append(h('button', { class: 'btn', onclick: () => { moveDir = -1; previewPos = v.pos[me].slice(); phase = 'break'; render(); } }, '⏸ Stay put'));
+        } else {
+          controls.append(h('div', { class: 'hint' }, '② Break a block — 💥 = knocks your rival through!'));
+          controls.append(h('button', { class: 'btn btn-ghost', onclick: () => { phase = 'move'; moveDir = null; previewPos = v.pos[me].slice(); render(); } }, '↩ Change move'));
+        }
       }
-      rootEl.append(board);
-      if (api.canPlay && !v.over) {
-        const arrow = (dir, cls, label) => h('button', {
-          class: 'dbtn ' + cls + (v.legalDirs[dir] ? '' : ' off'),
-          disabled: v.legalDirs[dir] ? null : 'disabled',
-          onclick: v.legalDirs[dir] ? () => api.play(dir) : null,
-        }, label);
-        rootEl.append(h('div', { class: 'dpad' },
-          arrow(0, 'd-up', '▲'), arrow(3, 'd-left', '◀'),
-          h('div', { class: 'd-mid' }, '🐧'), arrow(1, 'd-right', '▶'), arrow(2, 'd-down', '▼')));
-      }
+      render();
     },
   };
   root.GAMES = [grandprix, flappy, draft, ice, hex, connect4, gomoku];
@@ -1125,7 +1173,7 @@
       makeTrack, onTrack, segmentOnTrack, raceLegalNext, raceFinished, RACE,
       flappyGaps, FL,
       draftView, draftLegal, draftPicker, computeResults, rollFor, CARS, DRAFT, POSITIONS, ERAS,
-      iceBoardGen, iceResolve, iceView, iceLegal,
+      iceBoardGen, iceView, iceLegal, iceLegalMoveDirs, iceLegalBreaks, iceCascade,
     };
   }
 })(typeof window !== 'undefined' ? window : globalThis);
