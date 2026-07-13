@@ -44,9 +44,6 @@ Everything is static files at the repo root, so GitHub Pages can serve it as-is.
 3. Under **Source**, choose **Deploy from a branch**, pick your branch, folder **`/ (root)`**, and **Save**.
 4. In a minute your games are live at `https://<your-username>.github.io/<repo>/`. Open it on your phone and add it to your home screen.
 
-**Or auto-deploy on every push to `main`:**
-- A workflow is included at `.github/workflows/pages.yml`. Just set **Settings → Pages → Source** to **GitHub Actions** once, and every push to `main` redeploys.
-
 ## Run locally
 
 No dependencies or build step — it's plain HTML/CSS/JS. Serve the folder with anything:
