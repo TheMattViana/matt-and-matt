@@ -1002,17 +1002,18 @@
     },
   };
   /* =====================================================================
-     ICEBREAKER (slide-and-shove sumo on an ice floe)
-     Tap a direction; your penguin slides until it hits an ice block, the
-     edge, or the opponent. Slide INTO the opponent and you shove them the
-     same way — if they slide off the floe into the water, you win.
+     ICEBREAKER (step-and-shove — the ice breaks as you play)
+     One step per turn; stepping into your rival shoves them one square. Every
+     square a penguin steps off of CRACKS. You can't step onto cracked ice (you
+     would fall), but shove your rival onto cracked ice — or off the edge — and
+     they plunge through. Boxed in with no safe step of your own? You go under.
      ===================================================================== */
   const ICE_DIR = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // Up, Right, Down, Left
-  const ICE = { N: 6, K: 2, starts: [[3, 2], [2, 3]] };  // small floe, central starts, one-step moves
+  const ICE = { N: 6, patches: 2, starts: [[2, 2], [3, 3]] }; // patches = pairs of pre-cracked "thin ice"
   function iceBoardGen(seed) {
     const N = ICE.N;
     const rnd = root.UI.mulberry32((seed ^ 0x51ce) >>> 0);
-    const starts = ICE.starts.map((s) => s.slice());     // 180°-symmetric, diagonal (no turn-1 KO)
+    const starts = ICE.starts.map((s) => s.slice());          // 180°-symmetric, central, diagonal
     const mir = (r, c) => [N - 1 - r, N - 1 - c];
     const blocked = new Set();
     const bx = (r, c) => blocked.add(r * N + c);
@@ -1020,97 +1021,79 @@
     const cands = [];
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
       const id = r * N + c, m = mir(r, c), mid = m[0] * N + m[1];
-      if (id >= mid) continue;                          // one representative per mirrored pair (skips self-mirror)
+      if (id >= mid) continue;                                 // one representative per mirrored pair
       if (blocked.has(id) || blocked.has(mid)) continue;
       cands.push([r, c]);
     }
     for (let i = cands.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = cands[i]; cands[i] = cands[j]; cands[j] = t; }
-    const ice = new Set();
-    for (let i = 0; i < Math.min(ICE.K, cands.length); i++) { const r = cands[i][0], c = cands[i][1]; ice.add(r * N + c); const m = mir(r, c); ice.add(m[0] * N + m[1]); }
-    return { N, ice, starts };
+    const cracked0 = new Set();
+    for (let i = 0; i < Math.min(ICE.patches, cands.length); i++) { const r = cands[i][0], c = cands[i][1]; cracked0.add(r * N + c); const m = mir(r, c); cracked0.add(m[0] * N + m[1]); }
+    return { N, starts, cracked0 };
   }
-  // One step per turn. Step into the opponent to push them one cell (and follow
-  // into their square). A move that can't happen (off-board, into ice, or a shove
-  // that's backstopped by ice) has no effect -> illegal.
-  function iceResolve(posP, posO, dir, ice, N) {
+  // One step per turn; the mover always advances one square. The square the
+  // mover leaves cracks. Stepping into the opponent shoves them one square:
+  // off the edge or onto cracked ice = they fall through (KO).
+  function iceResolve(posP, posO, dir, cracked, N) {
     const dr = ICE_DIR[dir][0], dc = ICE_DIR[dir][1];
     const nr = posP[0] + dr, nc = posP[1] + dc;
-    const none = { mover: posP, trail: [[posP[0], posP[1]]], oPos: posO, oTrail: null, ko: false, moved: false, collided: false, effect: false };
-    if (nr < 0 || nr >= N || nc < 0 || nc >= N) return none;   // can't step off the floe yourself
-    if (ice.has(nr * N + nc)) return none;                     // blocked by ice
-    if (nr === posO[0] && nc === posO[1]) {                    // step into opponent -> shove one cell
+    const leave = posP[0] * N + posP[1];
+    const none = { mover: posP, oPos: posO, trail: [[posP[0], posP[1]]], cracks: [], ko: false, effect: false, hole: null };
+    if (nr < 0 || nr >= N || nc < 0 || nc >= N) return none;            // can't step off the floe yourself
+    if (nr === posO[0] && nc === posO[1]) {                             // step into opponent -> shove one square
       const orr = posO[0] + dr, occ = posO[1] + dc;
       const trail = [[posP[0], posP[1]], [nr, nc]];
-      if (orr < 0 || orr >= N || occ < 0 || occ >= N)          // shoved off the edge -> KO
-        return { mover: [nr, nc], trail, oPos: null, oTrail: [[posO[0], posO[1]], [orr, occ]], ko: true, moved: true, collided: true, effect: true };
-      if (ice.has(orr * N + occ)) return { mover: posP, trail: [[posP[0], posP[1]]], oPos: posO, oTrail: null, ko: false, moved: false, collided: true, effect: false }; // backstopped
-      return { mover: [nr, nc], trail, oPos: [orr, occ], oTrail: [[posO[0], posO[1]], [orr, occ]], ko: false, moved: true, collided: true, effect: true };
+      if (orr < 0 || orr >= N || occ < 0 || occ >= N)                  // shoved off the edge
+        return { mover: [nr, nc], oPos: null, trail, cracks: [leave], ko: true, effect: true, hole: null };
+      if (cracked.has(orr * N + occ))                                   // shoved onto thin ice -> falls through
+        return { mover: [nr, nc], oPos: null, trail, cracks: [leave], ko: true, effect: true, hole: orr * N + occ };
+      return { mover: [nr, nc], oPos: [orr, occ], trail, cracks: [leave], ko: false, effect: true, hole: null };
     }
-    return { mover: [nr, nc], trail: [[posP[0], posP[1]], [nr, nc]], oPos: posO, oTrail: null, ko: false, moved: true, collided: false, effect: true };
+    if (cracked.has(nr * N + nc)) return none;                          // won't step onto thin ice
+    return { mover: [nr, nc], oPos: posO, trail: [[posP[0], posP[1]], [nr, nc]], cracks: [leave], ko: false, effect: true, hole: null };
   }
   function iceView(m, f, st) {
     st = st || {};
-    const B = iceBoardGen(st.seed || 0), N = B.N, ice = B.ice;
+    const B = iceBoardGen(st.seed || 0), N = B.N;
+    const cracked = new Set(B.cracked0);
     let pos = [B.starts[0].slice(), B.starts[1].slice()];
-    let over = false, winner = null, lastTrail = null, lastOTrail = null;
+    let over = false, winner = null, lastTrail = null, lastCracks = null, hole = null;
     for (let k = 0; k < m.length && !over; k++) {
       const p = (f + k) % 2, o = 1 - p;
-      const res = iceResolve(pos[p], pos[o], m[k], ice, N);
-      pos[p] = [res.mover[0], res.mover[1]]; lastTrail = res.trail; lastOTrail = res.oTrail;
+      const res = iceResolve(pos[p], pos[o], m[k], cracked, N);
+      if (!res.effect) continue;                                       // ignore a recorded illegal move (shouldn't happen)
+      pos[p] = [res.mover[0], res.mover[1]];
+      for (const cid of res.cracks) cracked.add(cid);
+      lastTrail = res.trail; lastCracks = res.cracks; hole = res.hole;
       if (res.ko) { over = true; winner = p; pos[o] = null; } else pos[o] = [res.oPos[0], res.oPos[1]];
     }
-    const turn = over ? null : (f + m.length) % 2;
+    let turn = over ? null : (f + m.length) % 2;
     const legalDirs = [false, false, false, false];
-    if (!over) { const p = turn, o = 1 - p; for (let d = 0; d < 4; d++) { const r = iceResolve(pos[p], pos[o], d, ice, N); legalDirs[d] = r.effect; } }
+    if (!over) {
+      const p = turn, o = 1 - p;
+      for (let d = 0; d < 4; d++) legalDirs[d] = iceResolve(pos[p], pos[o], d, cracked, N).effect;
+      if (!legalDirs.some(Boolean)) { over = true; winner = 1 - turn; turn = null; }   // stranded on thin ice
+    }
     return {
-      N, ice, pos, over, winner, turn, legalDirs, lastTrail, lastOTrail,
+      N, cracked, pos, over, winner, turn, legalDirs, lastTrail, lastCracks, hole,
       lastMover: m.length ? (f + m.length - 1) % 2 : null,
     };
   }
   function iceLegal(m, f, dir, st) { const v = iceView(m, f, st); return !v.over && !!v.legalDirs[dir]; }
-  // Is a knockout reachable at all on this board? BFS over (pos0,pos1,turn) states.
-  // Filters out the rare fully-walled board where neither penguin can ever be pushed off.
-  function iceReachableKO(seed) {
-    const B = iceBoardGen(seed), N = B.N, ice = B.ice;
-    const start = { p: [B.starts[0].slice(), B.starts[1].slice()], t: 0 };
-    const seen = new Set([start.p[0] + '|' + start.p[1] + '|0']);
-    let q = [start], guard = 0;
-    while (q.length) {
-      if (++guard > 8000) return true;
-      const nq = [];
-      for (const s of q) {
-        const p = s.t, o = 1 - p;
-        for (let d = 0; d < 4; d++) {
-          const r = iceResolve(s.p[p], s.p[o], d, ice, N);
-          if (!r.effect) continue;
-          if (r.ko) return true;
-          const np = [null, null]; np[p] = [r.mover[0], r.mover[1]]; np[o] = [r.oPos[0], r.oPos[1]];
-          const k = np[0] + '|' + np[1] + '|' + o;
-          if (seen.has(k)) continue; seen.add(k); nq.push({ p: np, t: o });
-        }
-      }
-      q = nq;
-    }
-    return false;
-  }
   const ice = {
-    id: 'ice', name: 'Icebreaker', emoji: '🐧', mode: 'turns', tagLabel: 'Slide & shove',
-    blurb: 'Slide your penguin across the floe and shove your rival into the drink. Last one standing wins.',
+    id: 'ice', name: 'Icebreaker', emoji: '🐧', mode: 'turns', tagLabel: 'Break the ice',
+    blurb: 'Every step cracks the ice behind you. Shove your rival through a crack or off the floe — don’t get boxed in.',
     colors: ['#4c86f4', '#f4544c'], pieceLabel: ['Blue', 'Red'],
-    view: iceView, legal: iceLegal,
-    newTurnState(f) {
-      let seed = (Math.floor(Math.random() * 1e9)) >>> 0, tries = 0;
-      while (!iceReachableKO(seed) && tries < 60) { seed = (seed + 1) >>> 0; tries++; }
-      return { g: 'ice', v: 1, f, seed, m: [] };
-    },
+    view: iceView, legal: iceLegal, iceResolve, iceBoardGen,
+    newTurnState(f) { return { g: 'ice', v: 2, f, seed: (Math.floor(Math.random() * 1e9)) >>> 0, m: [] }; },
     paint(rootEl, api) {
       const v = api.view, N = v.N;
       const board = h('div', { class: 'ice-board', style: { '--n': String(N) } });
       const inTrail = (t, r, c) => t && t.some((x) => x[0] === r && x[1] === c);
       for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
         const id = r * N + c;
-        const cell = h('div', { class: 'ice-cell' + (v.ice.has(id) ? ' block' : '') + (inTrail(v.lastTrail, r, c) ? ' trail' : '') + (inTrail(v.lastOTrail, r, c) ? ' otrail' : '') });
-        if (v.ice.has(id)) cell.append(h('span', { class: 'ice-flake' }, '❄'));
+        const cell = h('div', {
+          class: 'ice-cell' + (v.cracked.has(id) ? ' cracked' : '') + (id === v.hole ? ' hole' : '') + (inTrail(v.lastTrail, r, c) ? ' trail' : ''),
+        });
         for (const p of [0, 1]) {
           if (v.pos[p] && v.pos[p][0] === r && v.pos[p][1] === c) {
             const peng = h('div', { class: 'peng' + (p === api.me ? ' mine' : '') }, '🐧');
@@ -1121,7 +1104,6 @@
         board.append(cell);
       }
       rootEl.append(board);
-
       if (api.canPlay && !v.over) {
         const arrow = (dir, cls, label) => h('button', {
           class: 'dbtn ' + cls + (v.legalDirs[dir] ? '' : ' off'),
@@ -1129,15 +1111,11 @@
           onclick: v.legalDirs[dir] ? () => api.play(dir) : null,
         }, label);
         rootEl.append(h('div', { class: 'dpad' },
-          arrow(0, 'd-up', '▲'),
-          arrow(3, 'd-left', '◀'),
-          h('div', { class: 'd-mid' }, '🐧'),
-          arrow(1, 'd-right', '▶'),
-          arrow(2, 'd-down', '▼')));
+          arrow(0, 'd-up', '▲'), arrow(3, 'd-left', '◀'),
+          h('div', { class: 'd-mid' }, '🐧'), arrow(1, 'd-right', '▶'), arrow(2, 'd-down', '▼')));
       }
     },
   };
-
   root.GAMES = [grandprix, flappy, draft, ice, hex, connect4, gomoku];
 
   // exports for node tests
