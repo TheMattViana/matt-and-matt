@@ -73,7 +73,7 @@ button { font-family: inherit; cursor: pointer; }
   display: flex; align-items: center; justify-content: space-between;
   background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px;
 }
-.you { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.status .you { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 6px; }
 .swatch { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid rgba(255,255,255,.4); vertical-align: middle; }
 .turn { font-weight: 700; font-size: 16px; }
 .turn.play { color: var(--accent); }
@@ -169,8 +169,8 @@ button { font-family: inherit; cursor: pointer; }
 .board-wrap.draft { display: block; }
 .draft { width: 100%; }
 .draft-head { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; font-weight: 600; padding: 0 2px 10px; }
-.draft-rosters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-.roster { border: 1px solid var(--line); border-left-width: 3px; border-radius: 12px; padding: 10px; background: var(--card); min-height: 60px; }
+.draft-rosters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.roster { border: 1px solid var(--line); border-left-width: 3px; border-radius: 12px; padding: 10px 12px; background: var(--card); min-width: 0; }
 .roster.you { background: var(--card2); }
 .roster-title { font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .roster-count { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -214,3 +214,30 @@ button { font-family: inherit; cursor: pointer; }
 .statsheet th { color: var(--muted); font-size: 11px; }
 .statsheet .sh-name { text-align: left; white-space: nowrap; font-weight: 600; }
 .statsheet th.sh-name { color: var(--text); }
+
+/* roll & retool */
+.roll-banner {
+  background: linear-gradient(180deg, var(--card2), var(--card)); border: 1px solid var(--accent2);
+  border-radius: 14px; padding: 14px; margin-bottom: 12px; text-align: center;
+}
+.roll-line { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 20px; font-weight: 800; }
+.roll-era { color: var(--text); }
+.roll-x { color: var(--muted); font-weight: 600; }
+.roll-brand { color: var(--accent); }
+.retool-btn { width: auto; margin-top: 10px; padding: 9px 14px; font-size: 13px; }
+.retool-spent { margin-top: 8px; color: var(--muted); font-size: 12px; font-style: italic; }
+
+/* position slots in the roster */
+.slot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 13.5px; min-width: 0; }
+.slot:last-child { border-bottom: 0; }
+.slot-pos { color: var(--muted); white-space: nowrap; flex: 0 0 auto; }
+.slot-car { font-weight: 600; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot.filled .slot-pos { color: var(--text); }
+.slot.filled .slot-car { color: var(--accent); }
+
+/* selected car + position chooser */
+.pool-item.sel { border-color: var(--accent2); background: var(--card2); }
+.pos-choose { background: var(--card); border: 1px dashed var(--line); border-radius: 12px; padding: 10px; margin: 2px 0 4px; }
+.pos-choose-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.pos-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.pos-btn { width: auto; flex: 1 1 40%; padding: 11px 8px; font-size: 14px; }

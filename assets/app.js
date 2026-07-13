@@ -79,7 +79,7 @@
       const st = { g: game.id, v: 1, seed, st: [], cur: null };
       writeHash(st); enterDuel(game, st);
     } else {
-      const st = { g: game.id, v: 1, f: 0, m: [] };
+      const st = game.newTurnState ? game.newTurnState(0) : { g: game.id, v: 1, f: 0, m: [] };
       writeHash(st); enterTurns(game, st);
     }
   }
@@ -88,7 +88,7 @@
   // TURN-BASED FLOW
   // =======================================================================
   function computeLocalPlayer(game, st) {
-    const v = game.view(st.m, st.f);
+    const v = game.view(st.m, st.f, st);
     if (v.over) return v.lastMover == null ? 0 : 1 - v.lastMover;
     return v.turn;
   }
@@ -99,7 +99,7 @@
   }
   function renderTurns(game, st) {
     clear(appEl);
-    const v = game.view(st.m, st.f);
+    const v = game.view(st.m, st.f, st);
     const me = session.localPlayer;
     const phase = v.over ? 'over' : (v.turn === me ? 'play' : 'sent');
 
@@ -110,6 +110,14 @@
         if (v.over || v.turn !== me) return;
         if (!game.legal(st.m, st.f, move)) return;
         st.m = st.m.concat([move]);
+        writeHash(st);
+        renderTurns(game, st);
+      },
+      // general state change for games that need more than "append a move"
+      // (e.g. the draft's roll/retool). The game validates its own legality.
+      act(mutate) {
+        if (v.over || v.turn !== me) return;
+        mutate(st);
         writeHash(st);
         renderTurns(game, st);
       },
@@ -163,7 +171,7 @@
     }, navigator.share ? ('📩 ' + (label || 'Send move to opponent')) : ('🔗 ' + (label || 'Copy turn link')));
   }
   function rematchTurns(game, st) {
-    const nst = { g: game.id, v: 1, f: 1 - st.f, m: [] };
+    const nst = game.newTurnState ? game.newTurnState(1 - st.f) : { g: game.id, v: 1, f: 1 - st.f, m: [] };
     writeHash(nst); enterTurns(game, nst);
   }
 

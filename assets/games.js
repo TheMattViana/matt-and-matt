@@ -740,116 +740,156 @@
      the picks, so both players see identical outcomes from the shared link.
      ===================================================================== */
   const DRAFT = { team: 5 };
-  const CAR_EMOJI = {
-    Hypercar: '🏎️', Supercar: '🏎️', Sports: '🚗', Muscle: '🔥', Truck: '🛻',
-    'Off-road': '⛰️', 'Super SUV': '🚙', EV: '⚡', Economy: '🚘', 'Hot Hatch': '🚗',
-    Rally: '🏁', Wagon: '🚙',
-  };
-  // [name, class, SPD, ACC, HND, TOW, OFF, MPG]  (each 0–99)
+  const ERAS = { Classic: '🕰️', Retro: '📼', Modern: '⚡' };
+  // The 5 squad "positions" — each is a head-to-head event decided by one stat.
+  const POSITIONS = [
+    { name: 'Speed', emoji: '🏁', stat: 0, event: 'Top Speed Shootout' },
+    { name: 'Launch', emoji: '⚡', stat: 1, event: 'Drag Race' },
+    { name: 'Corners', emoji: '🌀', stat: 2, event: 'Canyon Carving' },
+    { name: 'Hauler', emoji: '🚚', stat: 3, event: 'Tow-Off' },
+    { name: 'Trail', emoji: '⛰️', stat: 4, event: 'Off-Road Trial' },
+  ];
+  const STAT_ABBR = ['SPD', 'ACC', 'HND', 'TOW', 'OFF'];
+  // [name, brand, era, SPD, ACC, HND, TOW, OFF]  (each 0–99)
   const CARS = [
-    ['Bugatti Chiron', 'Hypercar', 99, 96, 82, 5, 5, 10],
-    ['Koenigsegg Jesko', 'Hypercar', 99, 98, 86, 5, 5, 12],
-    ['Rimac Nevera', 'Hypercar', 97, 99, 85, 10, 10, 90],
-    ['Ferrari SF90', 'Supercar', 92, 97, 90, 5, 8, 30],
-    ['Lamborghini Huracán', 'Supercar', 93, 94, 89, 5, 8, 18],
-    ['McLaren 720S', 'Supercar', 94, 95, 92, 5, 6, 22],
-    ['Porsche 911 Turbo S', 'Supercar', 90, 95, 93, 20, 15, 28],
-    ['Chevrolet Corvette C8', 'Sports', 88, 90, 88, 12, 12, 40],
-    ['Nissan GT-R', 'Sports', 88, 92, 87, 10, 10, 32],
-    ['Toyota GR Supra', 'Sports', 78, 82, 84, 10, 12, 45],
-    ['Porsche 718 Cayman GT4', 'Sports', 82, 84, 94, 10, 12, 42],
-    ['Mazda MX-5 Miata', 'Sports', 55, 58, 90, 8, 12, 62],
-    ['Subaru BRZ', 'Sports', 62, 66, 85, 8, 14, 55],
-    ['Dodge Challenger Hellcat', 'Muscle', 86, 90, 68, 25, 12, 20],
-    ['Chevrolet Camaro ZL1', 'Muscle', 84, 88, 82, 22, 12, 30],
-    ['Ford Mustang GT', 'Muscle', 80, 84, 76, 20, 14, 38],
-    ['Dodge Charger Hellcat', 'Muscle', 85, 88, 66, 30, 14, 22],
-    ['Ford F-150 Raptor', 'Truck', 60, 66, 55, 78, 95, 28],
-    ['Ram 1500 TRX', 'Truck', 68, 78, 58, 82, 92, 20],
-    ['Chevrolet Silverado HD', 'Truck', 55, 52, 50, 95, 65, 26],
-    ['Ford F-250 Super Duty', 'Truck', 50, 45, 45, 99, 72, 22],
-    ['Toyota Tacoma TRD', 'Truck', 52, 55, 58, 60, 88, 40],
-    ['GMC Hummer EV', 'Truck', 62, 90, 50, 75, 90, 55],
-    ['Jeep Wrangler Rubicon', 'Off-road', 48, 52, 55, 45, 97, 38],
-    ['Ford Bronco', 'Off-road', 55, 60, 60, 50, 90, 40],
-    ['Land Rover Defender', 'Off-road', 62, 66, 64, 65, 88, 42],
-    ['Toyota Land Cruiser', 'Off-road', 60, 60, 60, 72, 90, 38],
-    ['Mercedes-AMG G63', 'Off-road', 72, 82, 62, 65, 85, 22],
-    ['Lamborghini Urus', 'Super SUV', 85, 88, 80, 55, 55, 30],
-    ['Porsche Cayenne Turbo', 'Super SUV', 82, 84, 82, 60, 55, 32],
-    ['Tesla Model S Plaid', 'EV', 90, 99, 80, 40, 20, 95],
-    ['Tesla Model 3', 'EV', 72, 82, 78, 20, 18, 96],
-    ['Porsche Taycan', 'EV', 84, 92, 86, 30, 20, 88],
-    ['Lucid Air', 'EV', 86, 94, 80, 35, 18, 94],
-    ['Toyota Prius', 'Economy', 40, 42, 50, 10, 15, 99],
-    ['Honda Civic', 'Economy', 50, 52, 66, 12, 18, 85],
-    ['Toyota Corolla', 'Economy', 44, 46, 58, 12, 18, 88],
-    ['Volkswagen Golf GTI', 'Hot Hatch', 68, 74, 80, 15, 20, 60],
-    ['Subaru WRX STI', 'Rally', 70, 78, 82, 20, 45, 42],
-    ['Audi RS6 Avant', 'Wagon', 84, 90, 84, 45, 25, 35],
+    ['Ferrari F40', 'Ferrari', 'Classic', 92, 88, 84, 5, 5],
+    ['Lamborghini Countach', 'Lamborghini', 'Classic', 88, 80, 72, 5, 6],
+    ['Porsche 911 Carrera 3.2', 'Porsche', 'Classic', 72, 70, 82, 12, 15],
+    ['Ford Mustang Boss 302', 'Ford', 'Classic', 74, 78, 60, 20, 12],
+    ['Chevrolet Corvette Sting Ray', 'Chevrolet', 'Classic', 70, 72, 66, 12, 10],
+    ['Dodge Charger R/T', 'Dodge', 'Classic', 76, 80, 55, 28, 14],
+    ['Shelby Cobra 427', 'Shelby', 'Classic', 80, 88, 70, 8, 8],
+    ['Toyota Land Cruiser FJ40', 'Toyota', 'Classic', 40, 42, 45, 60, 92],
+    ['Jeep CJ-5', 'Jeep', 'Classic', 38, 40, 42, 40, 90],
+    ['Datsun 240Z', 'Datsun', 'Classic', 66, 68, 78, 10, 14],
+    ['Lancia Stratos', 'Lancia', 'Classic', 74, 80, 86, 5, 40],
+    ['BMW M3 E30', 'BMW', 'Classic', 70, 72, 88, 12, 16],
+    ['Mercedes 300SL', 'Mercedes', 'Classic', 68, 62, 66, 12, 12],
+    ['Land Rover Series III', 'Land Rover', 'Classic', 35, 36, 44, 55, 88],
+    ['Volkswagen Beetle', 'Volkswagen', 'Classic', 30, 34, 50, 8, 30],
+    ['Ford F-100', 'Ford', 'Classic', 45, 44, 40, 70, 55],
+    ['McLaren F1', 'McLaren', 'Retro', 98, 92, 88, 5, 5],
+    ['Ferrari F50', 'Ferrari', 'Retro', 90, 90, 86, 5, 6],
+    ['Lamborghini Diablo', 'Lamborghini', 'Retro', 90, 86, 76, 5, 8],
+    ['Porsche 911 GT2 (996)', 'Porsche', 'Retro', 88, 88, 90, 12, 14],
+    ['Nissan Skyline GT-R R34', 'Nissan', 'Retro', 82, 86, 88, 12, 16],
+    ['Toyota Supra Mk4', 'Toyota', 'Retro', 84, 86, 82, 12, 12],
+    ['Mazda RX-7 FD', 'Mazda', 'Retro', 78, 80, 88, 8, 12],
+    ['Honda NSX', 'Honda', 'Retro', 80, 82, 90, 8, 12],
+    ['Dodge Viper GTS', 'Dodge', 'Retro', 88, 90, 78, 15, 10],
+    ['Subaru Impreza 22B', 'Subaru', 'Retro', 72, 80, 86, 18, 55],
+    ['Ford SVT Lightning', 'Ford', 'Retro', 68, 76, 55, 75, 40],
+    ['Hummer H1', 'Hummer', 'Retro', 40, 44, 40, 80, 96],
+    ['Jeep Grand Cherokee', 'Jeep', 'Retro', 55, 55, 55, 65, 80],
+    ['BMW M5 E39', 'BMW', 'Retro', 80, 82, 84, 30, 18],
+    ['Chevrolet Corvette C5 Z06', 'Chevrolet', 'Retro', 86, 86, 84, 15, 12],
+    ['Toyota Tacoma', 'Toyota', 'Retro', 48, 50, 52, 60, 82],
+    ['Bugatti Chiron', 'Bugatti', 'Modern', 99, 96, 82, 5, 5],
+    ['Koenigsegg Jesko', 'Koenigsegg', 'Modern', 99, 98, 86, 5, 5],
+    ['Ferrari SF90', 'Ferrari', 'Modern', 92, 97, 90, 5, 8],
+    ['Lamborghini Huracán', 'Lamborghini', 'Modern', 93, 94, 89, 5, 8],
+    ['McLaren 720S', 'McLaren', 'Modern', 94, 95, 92, 5, 6],
+    ['Porsche 911 Turbo S', 'Porsche', 'Modern', 90, 95, 93, 20, 15],
+    ['Chevrolet Corvette C8', 'Chevrolet', 'Modern', 88, 90, 88, 12, 12],
+    ['Nissan GT-R R35', 'Nissan', 'Modern', 88, 92, 87, 10, 10],
+    ['Toyota GR Supra', 'Toyota', 'Modern', 78, 82, 84, 10, 12],
+    ['Dodge Challenger Hellcat', 'Dodge', 'Modern', 86, 90, 68, 25, 12],
+    ['Ford Mustang GT', 'Ford', 'Modern', 80, 84, 76, 20, 14],
+    ['Ford F-150 Raptor', 'Ford', 'Modern', 60, 66, 55, 78, 95],
+    ['Ram 1500 TRX', 'Ram', 'Modern', 68, 78, 58, 82, 92],
+    ['Ford F-250 Super Duty', 'Ford', 'Modern', 50, 45, 45, 99, 72],
+    ['Jeep Wrangler Rubicon', 'Jeep', 'Modern', 48, 52, 55, 45, 97],
+    ['Ford Bronco', 'Ford', 'Modern', 55, 60, 60, 50, 90],
+    ['Mercedes-AMG G63', 'Mercedes', 'Modern', 72, 82, 62, 65, 85],
+    ['Lamborghini Urus', 'Lamborghini', 'Modern', 85, 88, 80, 55, 55],
+    ['Tesla Model S Plaid', 'Tesla', 'Modern', 90, 99, 80, 40, 20],
+    ['Porsche Taycan', 'Porsche', 'Modern', 84, 92, 86, 30, 20],
+    ['BMW M3 (G80)', 'BMW', 'Modern', 82, 86, 88, 25, 18],
+    ['Subaru WRX STI', 'Subaru', 'Modern', 70, 78, 82, 20, 45],
   ];
-  const STAT_ABBR = ['SPD', 'ACC', 'HND', 'TOW', 'OFF', 'MPG'];
-  const DRAFT_EVENTS = [
-    { name: 'Top Speed Shootout', emoji: '🏁', stat: 0, mode: 'best', tag: 'fastest car' },
-    { name: 'Drag Race', emoji: '⚡', stat: 1, mode: 'best', tag: 'quickest car' },
-    { name: 'Tow-Off', emoji: '🚚', stat: 3, mode: 'best', tag: 'biggest hauler' },
-    { name: 'Off-Road Trial', emoji: '⛰️', stat: 4, mode: 'best', tag: 'best rig' },
-    { name: 'Canyon Carving', emoji: '🌀', stat: 2, mode: 'avg', tag: 'team handling avg' },
-    { name: 'Economy Run', emoji: '⛽', stat: 5, mode: 'avg', tag: 'team MPG avg' },
-    { name: 'Grand Prix', emoji: '🏆', mode: 'gp', tag: 'all-round avg' },
-  ];
-  function carStat(ci, s) { return CARS[ci][2 + s]; }
-  function gpComposite(ci) { return 0.4 * carStat(ci, 0) + 0.35 * carStat(ci, 1) + 0.25 * carStat(ci, 2); }
+  function carStat(ci, s) { return CARS[ci][3 + s]; }
+  function carEmoji(ci) {
+    const spd = carStat(ci, 0), hnd = carStat(ci, 2), tow = carStat(ci, 3), off = carStat(ci, 4);
+    if (off >= 80) return '⛰️'; if (tow >= 75) return '🛻'; if (spd >= 92) return '🏎️'; if (hnd >= 88) return '🌀'; return '🚗';
+  }
   function draftPicker(k, f) { const pair = Math.floor(k / 2); const first = (pair % 2 === 0) ? f : 1 - f; return (k % 2 === 0) ? first : 1 - first; }
-  function draftHash(m) { let x = 2166136261; for (const v of m) { x ^= (v + 1); x = Math.imul(x, 16777619); } return x >>> 0; }
-  function teamScore(team, ev) {
-    if (ev.mode === 'best') {
-      let best = -1, car = -1;
-      for (const ci of team) { const v = carStat(ci, ev.stat); if (v > best) { best = v; car = ci; } }
-      return { score: best, car };
+  function draftHash(m) { let x = 2166136261; for (const mv of m) { x ^= (mv[0] + 1) * 7 + (mv[1] + 1); x = Math.imul(x, 16777619); } return x >>> 0; }
+  // Roll a random (era × brand) that still has an available car — deterministic
+  // from the shared state, so both players compute the active player's roll identically.
+  function rollFor(seed, m, pend) {
+    const taken = new Set(m.map((x) => x[0]));
+    const groups = new Map();
+    for (let ci = 0; ci < CARS.length; ci++) {
+      if (taken.has(ci)) continue;
+      const key = CARS[ci][2] + '§' + CARS[ci][1];
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(ci);
     }
-    if (ev.mode === 'avg') {
-      let sum = 0; for (const ci of team) sum += carStat(ci, ev.stat);
-      return { score: team.length ? sum / team.length : 0 };
-    }
-    let sum = 0, best = -1, car = -1;
-    for (const ci of team) { const c = gpComposite(ci); sum += c; if (c > best) { best = c; car = ci; } }
-    return { score: team.length ? sum / team.length : 0, car };
+    const keys = [...groups.keys()].sort();
+    if (!keys.length) return null;
+    const mix = (((seed >>> 0) ^ Math.imul(m.length + 1, 2654435761) ^ Math.imul(pend + 1, 40503)) >>> 0);
+    const rng = root.UI.mulberry32(mix);
+    const key = keys[Math.floor(rng() * keys.length)];
+    const parts = key.split('§');
+    return { era: parts[0], brand: parts[1], cars: groups.get(key) };
   }
   function computeResults(teams, m) {
-    const rnd = root.UI.mulberry32(draftHash(m));
-    const events = DRAFT_EVENTS.map((ev) => {
-      const a = teamScore(teams[0], ev), b = teamScore(teams[1], ev);
-      const fa = a.score + (rnd() * 5 - 2.5), fb = b.score + (rnd() * 5 - 2.5); // small sim variance
+    const slot = [{}, {}];
+    for (const p of [0, 1]) for (const pk of teams[p]) slot[p][pk.pos] = pk.car;
+    const rng = root.UI.mulberry32((draftHash(m) ^ 0xabcdef) >>> 0);
+    const events = POSITIONS.map((pos, pi) => {
+      const ca = slot[0][pi], cb = slot[1][pi];
+      const a = ca != null ? carStat(ca, pos.stat) : 0;
+      const b = cb != null ? carStat(cb, pos.stat) : 0;
+      const fa = a + (rng() * 5 - 2.5), fb = b + (rng() * 5 - 2.5);   // small sim variance
       const winner = Math.abs(fa - fb) < 0.01 ? null : (fa > fb ? 0 : 1);
-      return { ev, a, b, fa, fb, winner };
+      return { pos, ca, cb, a, b, winner };
     });
     let w0 = 0, w1 = 0, t0 = 0, t1 = 0;
-    for (const e of events) { if (e.winner === 0) w0++; else if (e.winner === 1) w1++; t0 += e.fa; t1 += e.fb; }
+    for (const e of events) { if (e.winner === 0) w0++; else if (e.winner === 1) w1++; t0 += e.a; t1 += e.b; }
     const winner = w0 > w1 ? 0 : w1 > w0 ? 1 : (t0 > t1 ? 0 : t1 > t0 ? 1 : null);
     return { events, w0, w1, winner };
   }
-  function draftView(m, f) {
-    const total = DRAFT.team * 2;
-    const teams = [[], []];
-    for (let k = 0; k < m.length; k++) teams[draftPicker(k, f)].push(m[k]);
-    const over = m.length >= total;
+  function draftView(m, f, st) {
+    st = st || {};
+    const seed = st.seed || 0, used = st.used || [false, false], pend = st.pend || 0;
+    const teams = [[], []], usedPos = [new Set(), new Set()];
+    for (let k = 0; k < m.length; k++) { const p = draftPicker(k, f); teams[p].push({ car: m[k][0], pos: m[k][1] }); usedPos[p].add(m[k][1]); }
+    const over = m.length >= DRAFT.team * 2;
+    const turn = over ? null : draftPicker(m.length, f);
+    const roll = over ? null : rollFor(seed, m, pend);
     const results = over ? computeResults(teams, m) : null;
     return {
-      teams, over, results, total, TEAM: DRAFT.team, pickNo: m.length,
-      turn: over ? null : draftPicker(m.length, f),
+      teams, usedPos, over, turn, roll, pend,
+      retoolUsed: used, retoolAvail: !over && turn != null && !used[turn],
       lastMover: m.length ? draftPicker(m.length - 1, f) : null,
-      winner: results ? results.winner : null,
+      pickNo: m.length, total: DRAFT.team * 2, TEAM: DRAFT.team,
+      winner: results ? results.winner : null, results,
     };
   }
-  function draftLegal(m, f, idx) {
-    return !draftView(m, f).over && idx >= 0 && idx < CARS.length && m.indexOf(idx) === -1;
-  }
+  function draftLegal() { return false; } // draft uses api.act (roll/retool/pick), not generic play
   const draft = {
-    id: 'draft', name: 'Garage Draft', emoji: '🏆', mode: 'turns', tagLabel: 'Draft + sim',
-    blurb: 'Snake-draft real cars, then a sim runs races, tow-offs & more. Best garage wins.',
+    id: 'draft', name: 'Garage Draft', emoji: '🏆', mode: 'turns', tagLabel: 'Roll & draft',
+    blurb: 'Roll an era + brand, draft a car into a position. Build a 5-car squad, then they battle head-to-head.',
     colors: ['#4c86f4', '#f4544c'], pieceLabel: ['Team Blue', 'Team Red'],
-    view: draftView, legal: draftLegal, CARS, DRAFT_EVENTS, computeResults, draftPicker,
+    view: draftView, legal: draftLegal, CARS, POSITIONS, ERAS, computeResults, draftPicker, rollFor,
+    newTurnState(f) {
+      const seed = (Math.floor(Math.random() * 1e9)) >>> 0;
+      return { g: 'draft', v: 2, f, seed, m: [], used: [false, false], pend: 0 };
+    },
+    squadStrip(v, p, me) {
+      const wrap = h('div', { class: 'roster' + (p === me ? ' you' : '') });
+      wrap.style.borderColor = this.colors[p];
+      wrap.append(h('div', { class: 'roster-title' }, (p === me ? 'You · ' : '') + this.pieceLabel[p],
+        h('span', { class: 'roster-count' }, v.teams[p].length + '/' + v.TEAM)));
+      POSITIONS.forEach((pos, pi) => {
+        const pk = v.teams[p].find((x) => x.pos === pi);
+        wrap.append(h('div', { class: 'slot' + (pk ? ' filled' : '') },
+          h('span', { class: 'slot-pos' }, pos.emoji + ' ' + pos.name),
+          h('span', { class: 'slot-car' }, pk ? (carEmoji(pk.car) + ' ' + CARS[pk.car][0]) : '—')));
+      });
+      return wrap;
+    },
     paint(rootEl, api) {
       const v = api.view, me = api.me;
       const cont = h('div', { class: 'draft' });
@@ -858,44 +898,60 @@
       rootEl.append(cont);
     },
     paintDraft(cont, api, v, me) {
-      const round = Math.floor(v.pickNo / 2) + 1;
       cont.append(h('div', { class: 'draft-head' },
         h('span', {}, 'Pick ' + (v.pickNo + 1) + ' / ' + v.total),
-        h('span', {}, 'Round ' + round + ' of ' + v.TEAM)));
-
-      // rosters
+        h('span', {}, 'Round ' + (Math.floor(v.pickNo / 2) + 1) + ' of ' + v.TEAM)));
       const rost = h('div', { class: 'draft-rosters' });
-      [0, 1].forEach((p) => {
-        const col = h('div', { class: 'roster' + (p === me ? ' you' : '') });
-        col.style.borderColor = this.colors[p];
-        col.append(h('div', { class: 'roster-title' },
-          (p === me ? 'You · ' : '') + this.pieceLabel[p], h('span', { class: 'roster-count' }, v.teams[p].length + '/' + v.TEAM)));
-        if (!v.teams[p].length) col.append(h('div', { class: 'roster-empty' }, 'No picks yet'));
-        v.teams[p].forEach((ci) => col.append(h('div', { class: 'chip' },
-          CAR_EMOJI[CARS[ci][1]] + ' ' + CARS[ci][0])));
-        rost.append(col);
-      });
+      rost.append(this.squadStrip(v, me, me), this.squadStrip(v, 1 - me, me));
       cont.append(rost);
 
-      // available pool (no numbers — knowledge test)
-      const taken = new Set(api.m);
-      cont.append(h('div', { class: 'pool-head' }, api.canPlay ? '🔎 Draft a car' : 'Pool (waiting…)'));
-      const pool = h('div', { class: 'pool' });
-      for (let ci = 0; ci < CARS.length; ci++) {
-        if (taken.has(ci)) continue;
-        const c = CARS[ci];
-        const item = h('button', {
-          class: 'pool-item' + (api.canPlay ? ' live' : ''),
-          disabled: api.canPlay ? null : 'disabled',
-          onclick: api.canPlay ? () => api.play(ci) : null,
-        },
-          h('span', { class: 'car-emoji' }, CAR_EMOJI[c[1]]),
-          h('span', { class: 'car-main' },
-            h('span', { class: 'car-name' }, c[0]),
-            h('span', { class: 'car-class' }, c[1])));
-        pool.append(item);
+      if (!api.canPlay) { cont.append(h('div', { class: 'pool-head' }, '⏳ Waiting for opponent’s pick…')); return; }
+
+      const roll = v.roll;
+      const banner = h('div', { class: 'roll-banner' },
+        h('div', { class: 'roll-line' },
+          h('span', { class: 'roll-era' }, (ERAS[roll.era] || '') + ' ' + roll.era),
+          h('span', { class: 'roll-x' }, '×'),
+          h('span', { class: 'roll-brand' }, roll.brand)));
+      if (v.retoolAvail) {
+        banner.append(h('button', {
+          class: 'btn retool-btn',
+          onclick: () => api.act((st) => { st.used = (st.used || [false, false]).slice(); st.used[me] = true; st.pend = 1; }),
+        }, '🔄 Retool (your one re-roll)'));
+      } else if (v.retoolUsed[me]) {
+        banner.append(h('div', { class: 'retool-spent' }, 'Retool used'));
       }
-      cont.append(pool);
+      cont.append(h('div', { class: 'pool-head' }, '🎲 Your roll — draft one car:'));
+      cont.append(banner);
+
+      const pickArea = h('div', { class: 'pool' });
+      cont.append(pickArea);
+      let sel = null;
+      const redraw = () => {
+        clear(pickArea);
+        roll.cars.forEach((ci) => {
+          const chosen = sel === ci;
+          const item = h('button', { class: 'pool-item live' + (chosen ? ' sel' : '') },
+            h('span', { class: 'car-emoji' }, carEmoji(ci)),
+            h('span', { class: 'car-main' },
+              h('span', { class: 'car-name' }, CARS[ci][0]),
+              h('span', { class: 'car-class' }, CARS[ci][2] + ' · ' + CARS[ci][1])));
+          item.addEventListener('click', () => { sel = chosen ? null : ci; redraw(); });
+          pickArea.append(item);
+          if (chosen) {
+            const row = h('div', { class: 'pos-row' });
+            POSITIONS.forEach((pos, pi) => {
+              if (v.usedPos[me].has(pi)) return;
+              row.append(h('button', {
+                class: 'btn pos-btn',
+                onclick: () => api.act((st) => { st.m = st.m.concat([[ci, pi]]); st.pend = 0; }),
+              }, pos.emoji + ' ' + pos.name));
+            });
+            pickArea.append(h('div', { class: 'pos-choose' }, h('div', { class: 'pos-choose-label' }, 'Slot into:'), row));
+          }
+        });
+      };
+      redraw();
     },
     paintResults(cont, api, v, me) {
       const r = v.results;
@@ -904,57 +960,47 @@
       cont.append(h('div', { class: 'result-banner' },
         h('div', { class: 'result-verdict' }, verdict),
         h('div', { class: 'result-score' }, 'You ' + myWins + ' — ' + oppWins + ' Them')));
-
-      // event-by-event
       const evwrap = h('div', { class: 'events' });
       r.events.forEach((e) => {
-        const aVal = e.ev.mode === 'best' ? String(carStat(e.a.car, e.ev.stat)) : e.a.score.toFixed(1);
-        const bVal = e.ev.mode === 'best' ? String(carStat(e.b.car, e.ev.stat)) : e.b.score.toFixed(1);
-        const aCar = (e.ev.mode !== 'avg' && e.a.car != null && e.a.car >= 0) ? CARS[e.a.car][0] : e.ev.tag;
-        const bCar = (e.ev.mode !== 'avg' && e.b.car != null && e.b.car >= 0) ? CARS[e.b.car][0] : e.ev.tag;
-        // map absolute team index 0/1 to your/opp columns (left = you)
         const left = me, rightP = 1 - me;
-        const val = (p) => p === 0 ? aVal : bVal;
-        const car = (p) => p === 0 ? aCar : bCar;
-        const winP = e.winner; // 0/1 absolute
+        const carOf = (p) => p === 0 ? e.ca : e.cb;
+        const valOf = (p) => p === 0 ? e.a : e.b;
+        const side = (p, right) => {
+          const ci = carOf(p);
+          return h('div', { class: 'side' + (right ? ' right' : '') + (e.winner === p ? ' win' : '') + (e.winner == null ? ' tie' : '') },
+            h('span', { class: 'side-val' }, String(valOf(p))),
+            h('span', { class: 'side-car' }, ci != null ? CARS[ci][0] : '—'));
+        };
         evwrap.append(h('div', { class: 'event-card' },
-          h('div', { class: 'event-title' }, e.ev.emoji + ' ' + e.ev.name),
-          h('div', { class: 'event-vs' },
-            h('div', { class: 'side' + (winP === left ? ' win' : '') + (winP == null ? ' tie' : '') },
-              h('span', { class: 'side-val' }, val(left)),
-              h('span', { class: 'side-car' }, car(left))),
-            h('div', { class: 'vs' }, winP === left ? '◀' : winP === rightP ? '▶' : '='),
-            h('div', { class: 'side right' + (winP === rightP ? ' win' : '') + (winP == null ? ' tie' : '') },
-              h('span', { class: 'side-val' }, val(rightP)),
-              h('span', { class: 'side-car' }, car(rightP))))));
+          h('div', { class: 'event-title' }, e.pos.emoji + ' ' + e.pos.event),
+          h('div', { class: 'event-vs' }, side(left, false),
+            h('div', { class: 'vs' }, e.winner === left ? '◀' : e.winner === rightP ? '▶' : '='),
+            side(rightP, true))));
       });
       cont.append(evwrap);
-
-      // full stat sheets (the reveal)
       cont.append(h('div', { class: 'pool-head' }, '📋 The stat sheets'));
       [me, 1 - me].forEach((p) => {
         const tbl = h('table', { class: 'statsheet' });
-        const head = h('tr', {}, h('th', { class: 'sh-name' }, (p === me ? 'Your' : 'Their') + ' garage'));
+        const head = h('tr', {}, h('th', { class: 'sh-name' }, (p === me ? 'Your' : 'Their') + ' squad'), h('th', {}, 'POS'));
         STAT_ABBR.forEach((s) => head.append(h('th', {}, s)));
         tbl.append(head);
-        v.teams[p].forEach((ci) => {
-          const row = h('tr', {}, h('td', { class: 'sh-name' }, CAR_EMOJI[CARS[ci][1]] + ' ' + CARS[ci][0]));
-          for (let s = 0; s < 6; s++) {
+        POSITIONS.forEach((pos, pi) => {
+          const pk = v.teams[p].find((x) => x.pos === pi); if (!pk) return;
+          const ci = pk.car;
+          const row = h('tr', {}, h('td', { class: 'sh-name' }, carEmoji(ci) + ' ' + CARS[ci][0]), h('td', {}, pos.emoji));
+          for (let s = 0; s < 5; s++) {
             const val = carStat(ci, s);
             const td = h('td', {}, String(val));
             td.style.color = val >= 85 ? '#7ee0a1' : val <= 30 ? '#ff9f8a' : '';
+            if (s === pos.stat) td.style.fontWeight = '800';
             row.append(td);
           }
           tbl.append(row);
         });
-        const wrap = h('div', { class: 'sheet-wrap' });
-        wrap.append(h('div', { class: 'sheet-label' }, (p === me ? 'You · ' : '') + this.pieceLabel[p]));
-        wrap.append(tbl);
-        cont.append(wrap);
+        cont.append(h('div', { class: 'sheet-wrap' }, h('div', { class: 'sheet-label' }, (p === me ? 'You · ' : '') + this.pieceLabel[p]), tbl));
       });
     },
   };
-
   root.GAMES = [grandprix, flappy, draft, hex, connect4, gomoku];
 
   // exports for node tests
@@ -963,7 +1009,7 @@
       c4View, c4Legal, goView, goLegal, hexView, hexLegal, hexNeighbors, hexWinner,
       makeTrack, onTrack, segmentOnTrack, raceLegalNext, raceFinished, RACE,
       flappyGaps, FL,
-      draftView, draftLegal, draftPicker, computeResults, CARS, DRAFT, DRAFT_EVENTS,
+      draftView, draftLegal, draftPicker, computeResults, rollFor, CARS, DRAFT, POSITIONS, ERAS,
     };
   }
 })(typeof window !== 'undefined' ? window : globalThis);
