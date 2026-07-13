@@ -108,7 +108,7 @@
       canPlay: phase === 'play',
       play(move) {
         if (v.over || v.turn !== me) return;
-        if (!game.legal(st.m, st.f, move)) return;
+        if (!game.legal(st.m, st.f, move, st)) return;
         st.m = st.m.concat([move]);
         writeHash(st);
         renderTurns(game, st);

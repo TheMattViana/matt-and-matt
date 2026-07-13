@@ -241,3 +241,43 @@ button { font-family: inherit; cursor: pointer; }
 .pos-choose-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
 .pos-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .pos-btn { width: auto; flex: 1 1 40%; padding: 11px 8px; font-size: 14px; }
+
+/* ================= ICEBREAKER ================= */
+.board-wrap.ice { flex-direction: column; align-items: center; gap: 18px; }
+.ice-board {
+  display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 4px;
+  width: min(94vw, 420px); aspect-ratio: 1; padding: 10px; border-radius: 16px;
+  background: linear-gradient(160deg, #1b3a63, #14508a); border: 1px solid #2f6da3;
+  box-shadow: inset 0 0 24px rgba(0,0,0,.35);
+}
+.ice-cell {
+  position: relative; border-radius: 8px; display: grid; place-items: center;
+  background: linear-gradient(160deg, #dcefff, #b7d9f2); box-shadow: inset 0 -2px 3px rgba(90,130,170,.35);
+}
+.ice-cell.block { background: linear-gradient(160deg, #ffffff, #cfe0ee); box-shadow: 0 2px 4px rgba(0,0,0,.35), inset 0 2px 3px rgba(255,255,255,.9); }
+.ice-flake { color: #8fb8dd; font-size: 60%; opacity: .8; }
+.ice-cell.trail { background: linear-gradient(160deg, #bcd6f7, #8db4e6); }
+.ice-cell.otrail { background: linear-gradient(160deg, #f7c9c6, #efa6a0); }
+.peng {
+  position: absolute; inset: 8%; display: grid; place-items: center; font-size: min(6.2vw, 30px);
+  border-radius: 50%; background: radial-gradient(circle at 50% 35%, #ffffff, var(--pc));
+  box-shadow: 0 2px 5px rgba(0,0,0,.4), 0 0 0 2px var(--pc);
+}
+.peng.mine { animation: pengpulse 1.4s ease-in-out infinite; }
+@keyframes pengpulse { 0%,100% { box-shadow: 0 2px 5px rgba(0,0,0,.4), 0 0 0 2px var(--pc); } 50% { box-shadow: 0 2px 5px rgba(0,0,0,.4), 0 0 0 5px var(--pc); } }
+
+.dpad {
+  display: grid; grid-template-columns: repeat(3, 62px); grid-template-rows: repeat(3, 62px);
+  gap: 8px; justify-content: center;
+}
+.dbtn {
+  border: 1px solid var(--line); background: var(--card2); color: var(--text);
+  border-radius: 14px; font-size: 24px; font-weight: 700; display: grid; place-items: center;
+}
+.dbtn:active { transform: scale(.94); background: var(--accent2); border-color: var(--accent2); }
+.dbtn.off { opacity: .28; }
+.d-up { grid-area: 1 / 2; }
+.d-left { grid-area: 2 / 1; }
+.d-mid { grid-area: 2 / 2; display: grid; place-items: center; font-size: 26px; opacity: .6; }
+.d-right { grid-area: 2 / 3; }
+.d-down { grid-area: 3 / 2; }
