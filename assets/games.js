@@ -812,16 +812,26 @@
     const spd = carStat(ci, 0), hnd = carStat(ci, 2), tow = carStat(ci, 3), off = carStat(ci, 4);
     if (off >= 80) return '⛰️'; if (tow >= 75) return '🛻'; if (spd >= 92) return '🏎️'; if (hnd >= 88) return '🌀'; return '🚗';
   }
+  const DRAFT_CLASS_EMOJI = { Performance: '🏎️', Utility: '🛻', Wildcard: '🎲' };
+  // Broad draft class derived from stats — deliberately coarse so every roll
+  // offers several cars. "Utility" = trucks / haulers / off-roaders / big SUVs.
+  function carClass(ci) {
+    return (carStat(ci, 4) >= 50 || carStat(ci, 3) >= 50) ? 'Utility' : 'Performance';
+  }
   function draftPicker(k, f) { const pair = Math.floor(k / 2); const first = (pair % 2 === 0) ? f : 1 - f; return (k % 2 === 0) ? first : 1 - first; }
   function draftHash(m) { let x = 2166136261; for (const mv of m) { x ^= (mv[0] + 1) * 7 + (mv[1] + 1); x = Math.imul(x, 16777619); } return x >>> 0; }
-  // Roll a random (era × brand) that still has an available car — deterministic
-  // from the shared state, so both players compute the active player's roll identically.
+  const DRAFT_MIN_OPTS = 4;
+  // Roll a random (era × class) that still has an available car — deterministic
+  // from the shared state, so both players compute the active player's roll
+  // identically. Classes are broad, so a roll always offers several cars; if the
+  // rolled class happens to be thin, it widens to the whole era (a "Wildcard")
+  // so you're never stuck picking from a single option.
   function rollFor(seed, m, pend) {
     const taken = new Set(m.map((x) => x[0]));
     const groups = new Map();
     for (let ci = 0; ci < CARS.length; ci++) {
       if (taken.has(ci)) continue;
-      const key = CARS[ci][2] + '§' + CARS[ci][1];
+      const key = CARS[ci][2] + '§' + carClass(ci);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(ci);
     }
@@ -831,7 +841,14 @@
     const rng = root.UI.mulberry32(mix);
     const key = keys[Math.floor(rng() * keys.length)];
     const parts = key.split('§');
-    return { era: parts[0], brand: parts[1], cars: groups.get(key) };
+    const era = parts[0];
+    let klass = parts[1], cars = groups.get(key);
+    if (cars.length < DRAFT_MIN_OPTS) {
+      cars = [];
+      for (let ci = 0; ci < CARS.length; ci++) if (!taken.has(ci) && CARS[ci][2] === era) cars.push(ci);
+      klass = 'Wildcard';
+    }
+    return { era, brand: klass, cars };
   }
   function computeResults(teams, m) {
     const slot = [{}, {}];
@@ -870,7 +887,7 @@
   function draftLegal() { return false; } // draft uses api.act (roll/retool/pick), not generic play
   const draft = {
     id: 'draft', name: 'Garage Draft', emoji: '🏆', mode: 'turns', tagLabel: 'Roll & draft',
-    blurb: 'Roll an era + brand, draft a car into a position. Build a 5-car squad, then they battle head-to-head.',
+    blurb: 'Roll an era + class, draft a car into a position. Build a 5-car squad, then they battle head-to-head.',
     colors: ['#4c86f4', '#f4544c'], pieceLabel: ['Team Blue', 'Team Red'],
     view: draftView, legal: draftLegal, CARS, POSITIONS, ERAS, computeResults, draftPicker, rollFor,
     newTurnState(f) {
@@ -912,7 +929,7 @@
         h('div', { class: 'roll-line' },
           h('span', { class: 'roll-era' }, (ERAS[roll.era] || '') + ' ' + roll.era),
           h('span', { class: 'roll-x' }, '×'),
-          h('span', { class: 'roll-brand' }, roll.brand)));
+          h('span', { class: 'roll-brand' }, (DRAFT_CLASS_EMOJI[roll.brand] || '') + ' ' + roll.brand)));
       if (v.retoolAvail) {
         banner.append(h('button', {
           class: 'btn retool-btn',
