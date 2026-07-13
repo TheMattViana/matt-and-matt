@@ -1037,16 +1037,15 @@
     while (true) {
       const nr = cur[0] + dr, nc = cur[1] + dc;
       const moved = (cur[0] !== posP[0] || cur[1] !== posP[1]);
-      if (nr < 0 || nr >= N || nc < 0 || nc >= N) return { mover: cur, trail, oPos: posO, oTrail: null, ko: false, moved, collided: false };
-      if (ice.has(nr * N + nc)) return { mover: cur, trail, oPos: posO, oTrail: null, ko: false, moved, collided: false };
-      if (nr === posO[0] && nc === posO[1]) {           // shove the opponent
-        let oc = [posO[0], posO[1]]; const otrail = [[posO[0], posO[1]]];
-        while (true) {
-          const orr = oc[0] + dr, occ = oc[1] + dc;
-          if (orr < 0 || orr >= N || occ < 0 || occ >= N) { otrail.push([orr, occ]); return { mover: cur, trail, oPos: null, oTrail: otrail, ko: true, moved, collided: true }; }
-          if (ice.has(orr * N + occ)) return { mover: cur, trail, oPos: oc, oTrail: otrail, ko: false, moved, collided: true };
-          oc = [orr, occ]; otrail.push([orr, occ]);
-        }
+      if (nr < 0 || nr >= N || nc < 0 || nc >= N) return { mover: cur, trail, oPos: posO, oTrail: null, ko: false, moved, collided: false, effect: moved };
+      if (ice.has(nr * N + nc)) return { mover: cur, trail, oPos: posO, oTrail: null, ko: false, moved, collided: false, effect: moved };
+      if (nr === posO[0] && nc === posO[1]) {           // shove the opponent ONE cell
+        const orr = posO[0] + dr, occ = posO[1] + dc;
+        if (orr < 0 || orr >= N || occ < 0 || occ >= N)     // pushed off the floe
+          return { mover: cur, trail, oPos: null, oTrail: [[posO[0], posO[1]], [orr, occ]], ko: true, moved, collided: true, effect: true };
+        if (ice.has(orr * N + occ))                          // backstopped by ice — they don't budge
+          return { mover: cur, trail, oPos: [posO[0], posO[1]], oTrail: [[posO[0], posO[1]]], ko: false, moved, collided: true, effect: moved };
+        return { mover: cur, trail, oPos: [orr, occ], oTrail: [[posO[0], posO[1]], [orr, occ]], ko: false, moved, collided: true, effect: true };
       }
       cur = [nr, nc]; trail.push([nr, nc]);
     }
@@ -1064,7 +1063,7 @@
     }
     const turn = over ? null : (f + m.length) % 2;
     const legalDirs = [false, false, false, false];
-    if (!over) { const p = turn, o = 1 - p; for (let d = 0; d < 4; d++) { const r = iceResolve(pos[p], pos[o], d, ice, N); legalDirs[d] = r.moved || r.collided; } }
+    if (!over) { const p = turn, o = 1 - p; for (let d = 0; d < 4; d++) { const r = iceResolve(pos[p], pos[o], d, ice, N); legalDirs[d] = r.effect; } }
     return {
       N, ice, pos, over, winner, turn, legalDirs, lastTrail, lastOTrail,
       lastMover: m.length ? (f + m.length - 1) % 2 : null,
@@ -1085,7 +1084,7 @@
         const p = s.t, o = 1 - p;
         for (let d = 0; d < 4; d++) {
           const r = iceResolve(s.p[p], s.p[o], d, ice, N);
-          if (!(r.moved || r.collided)) continue;
+          if (!r.effect) continue;
           if (r.ko) return true;
           const np = [null, null]; np[p] = [r.mover[0], r.mover[1]]; np[o] = [r.oPos[0], r.oPos[1]];
           const k = np[0] + '|' + np[1] + '|' + o;
