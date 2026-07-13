@@ -6,16 +6,19 @@ person a link. They tap it, see your move, take their turn, and text a link back
 The entire game lives inside the URL, so it works on any phone and picks up right
 where you left off whenever a link lands in your chat.
 
-Built for two brothers, one of them stuck in a hospital bed with only a phone. 💙
+Built for two people with nothing but their phones — one of them stuck in a hospital bed, bored. 💙
 
 ## The games
 
 | Game | What it is |
 | --- | --- |
 | 🏁 **Grand Prix** | Vector racing. Your car has *momentum* — nudge your speed and steer each turn, but carry too much into a hairpin and you spin out. You each drive the **same track solo**, and whoever finishes in **fewer moves wins**. Drive your run, text the track + your time (with a ghost of your racing line), and dare them to beat it. Every track is procedurally generated and guaranteed solvable. |
+| 🐤 **Flappy Duel** | Flap through the pipes. Both players face the **exact same pipes** (seeded), so it's a fair contest — **highest score wins**. Play your run, text your score, and dare them to beat it. |
 | ⬡ **Hex** | Connect your two sides of the board with an unbroken chain of your color. Dead-simple rules, genuinely bottomless strategy, and **it's impossible to draw** — someone always wins. A favorite among serious abstract-strategy players. |
 | 🔴 **Connect 4** | Drop discs, line up four. Quick and satisfying. |
 | ⚫ **Gomoku** | Five in a row on a big 15×15 board. Tic-tac-toe, all grown up. |
+
+Two of these (Grand Prix, Flappy Duel) are **solo-run duels** — you each take your shot on the same course and compare scores. The rest are **turn-by-turn**.
 
 ## How a game flows
 
@@ -60,7 +63,7 @@ to how it behaves when hosted.)
 index.html          # shell + script includes
 assets/styles.css   # all styling (mobile-first, dark theme)
 assets/util.js      # DOM helper, URL-safe state encoding, seeded RNG, share/clipboard
-assets/games.js     # the four games (pure logic + rendering)
+assets/games.js     # the games (pure logic + rendering)
 assets/app.js       # router + the two play flows (alternating turns & racing duel)
 ```
 

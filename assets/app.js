@@ -53,7 +53,7 @@
     wrap.append(
       h('div', { class: 'hero' },
         h('h1', {}, 'Matt ', h('span', { class: 'amp' }, '&'), ' Matt'),
-        h('p', { class: 'tagline' }, 'Pick a game, make your move, text the link. Your bro taps it and it’s his turn.')),
+        h('p', { class: 'tagline' }, 'Pick a game, make your move, text the link. Your opponent taps it and it’s their turn.')),
     );
     const grid = h('div', { class: 'cards' });
     for (const game of GAMES) {
@@ -63,7 +63,7 @@
         h('div', { class: 'card-emoji' }, game.emoji),
         h('div', { class: 'card-name' }, game.name),
         h('div', { class: 'card-blurb' }, game.blurb),
-        h('div', { class: 'card-tag' }, game.mode === 'duel' ? 'Race duel' : 'Turn by turn')));
+        h('div', { class: 'card-tag' }, game.tagLabel || (game.mode === 'duel' ? 'Solo duel' : 'Turn by turn'))));
     }
     wrap.append(grid);
     wrap.append(h('div', { class: 'how' },
@@ -138,14 +138,14 @@
   }
   function resultText(v, me) {
     if (v.winner == null) return '🤝 Draw';
-    return v.winner === me ? '🎉 You win!' : '😤 Your bro wins';
+    return v.winner === me ? '🎉 You win!' : '😤 Opponent wins';
   }
   function footerTurns(game, st, v, phase, me) {
     const foot = h('div', { class: 'panel' });
     if (phase === 'play') {
       foot.append(h('div', { class: 'hint' }, 'Make your move, then send it over.'));
     } else if (phase === 'sent') {
-      foot.append(h('div', { class: 'hint' }, 'Locked in. Send it to your bro — it’s his turn now.'));
+      foot.append(h('div', { class: 'hint' }, 'Locked in. Send it to your opponent — it’s their turn now.'));
       foot.append(sendButton(st));
       foot.append(h('button', { class: 'btn btn-ghost', onclick: () => UI.copyText(location.href) }, '🔗 Copy link'));
     } else { // over
@@ -160,7 +160,7 @@
     return h('button', {
       class: 'btn btn-primary big',
       onclick: () => { writeHash(st); UI.shareLink(location.href, 'Your turn 👇'); },
-    }, navigator.share ? ('📩 ' + (label || 'Send move to your bro')) : ('🔗 ' + (label || 'Copy turn link')));
+    }, navigator.share ? ('📩 ' + (label || 'Send move to opponent')) : ('🔗 ' + (label || 'Copy turn link')));
   }
   function rematchTurns(game, st) {
     const nst = { g: game.id, v: 1, f: 1 - st.f, m: [] };

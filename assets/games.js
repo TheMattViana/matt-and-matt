@@ -333,7 +333,7 @@
   }
 
   const grandprix = {
-    id: 'grandprix', name: 'Grand Prix', emoji: '🏁', mode: 'duel',
+    id: 'grandprix', name: 'Grand Prix', emoji: '🏁', mode: 'duel', tagLabel: 'Race duel',
     blurb: 'Vector racing. You each drive the same track solo — fewest moves wins.',
     makeTrack, onTrack, segmentOnTrack, raceLegalNext, raceFinished,
     startPath(track) { return [track.start.slice()]; },
@@ -366,13 +366,13 @@
       // Message
       let msg = '';
       if (racing) msg = 'Drive to the finish. ' + (target != null ? 'Beat ' + target + ' moves.' : 'Set the pace!');
-      else if (readyToStart && runs.length === 0) msg = 'Fresh track. Drive it, then challenge your bro to beat your time.';
-      else if (readyToStart && runs.length >= 1) msg = 'Your bro ran it in ' + target + '. Can you go faster?';
-      else if (api.session.raced && runs.length < 2) msg = 'Nice run! Send it over and dare your bro to beat it.';
+      else if (readyToStart && runs.length === 0) msg = 'Fresh track. Drive it, then challenge your opponent to beat your time.';
+      else if (readyToStart && runs.length >= 1) msg = 'Your opponent ran it in ' + target + '. Can you go faster?';
+      else if (api.session.raced && runs.length < 2) msg = 'Nice run! Send it over and dare your opponent to beat it.';
       else if (api.session.raced && runs.length >= 2) {
         const mine = runs[runs.length - 1].n, other = Math.min(...runs.slice(0, -1).map((r) => r.n));
         msg = mine < other ? '🏆 You win — ' + mine + ' vs ' + other + '!' :
-          mine > other ? 'Your bro takes it — ' + mine + ' vs ' + other + '. Rematch?' :
+          mine > other ? 'Your opponent takes it — ' + mine + ' vs ' + other + '. Rematch?' :
             'Dead heat — ' + mine + ' each!';
       } else if (decided) {
         msg = '🏁 Race decided — fastest line wins. Run it back?';
@@ -542,7 +542,7 @@
           controls.append(h('button', {
             class: 'btn ' + (canStart ? 'btn-ghost' : 'btn-primary big'),
             onclick: () => api.share('Beat my time! 🏁'),
-          }, navigator.share ? '📩 Send to your bro' : '🔗 Copy link'));
+          }, navigator.share ? '📩 Send to opponent' : '🔗 Copy link'));
         }
         controls.append(rematchRow());
       }
@@ -560,13 +560,187 @@
     },
   };
 
-  root.GAMES = [grandprix, hex, connect4, gomoku];
+  /* =====================================================================
+     FLAPPY DUEL (beat-my-score, seeded pipes so both face the same course)
+     ===================================================================== */
+  const FL = {
+    W: 320, H: 480, birdX: 96, r: 13,
+    grav: 1250, flap: -420, speed: 140, sp: 180, pw: 52, gap: 160,
+    gmargin: 126, firstX: 360,
+  };
+  function flappyGaps(seed) {
+    const rnd = root.UI.mulberry32((seed ^ 0x9e37) >>> 0);
+    const gaps = [];
+    for (let i = 0; i < 600; i++) gaps.push(FL.gmargin + rnd() * (FL.H - 2 * FL.gmargin));
+    return gaps;
+  }
+  const flappy = {
+    id: 'flappy', name: 'Flappy Duel', emoji: '🐤', mode: 'duel', tagLabel: 'Score duel',
+    blurb: 'Flap through the pipes. Same pipes for both of you — highest score wins.',
+    flappyGaps, FL,
+    paint(rootEl, api) {
+      const st = api.state;
+      const runs = st.st || [];
+      const best = runs.length ? Math.max(...runs.map((r) => r.n)) : null;
+      const raced = api.session.raced;
+      const canPlay = !raced && runs.length < 2;
+
+      // ---- header / standings / message ----
+      const info = h('div', { class: 'race-hud' });
+      if (runs.length) {
+        const board = h('div', { class: 'standings' });
+        runs.forEach((r, i) => board.append(h('div', { class: 'stand' + (r.n === best ? ' lead' : '') },
+          h('span', { class: 'stand-name' }, (r.n === best ? '🏆 ' : '') + (r.label || ('Run ' + (i + 1)))),
+          h('span', { class: 'stand-time' }, r.n + ' pts'))));
+        info.append(board);
+      }
+      let msg = '';
+      if (canPlay && runs.length === 0) msg = 'Tap to flap. Rack up a score, then challenge someone to beat it.';
+      else if (canPlay && runs.length >= 1) msg = 'Your opponent scored ' + best + '. Beat it!';
+      else if (raced && runs.length < 2) msg = 'You scored ' + runs[runs.length - 1].n + '! Send it and dare your opponent to beat it.';
+      else if (raced && runs.length >= 2) {
+        const mine = runs[runs.length - 1].n, other = Math.max(...runs.slice(0, -1).map((r) => r.n));
+        msg = mine > other ? '🏆 You win — ' + mine + ' vs ' + other + '!' :
+          mine < other ? 'Your opponent takes it — ' + mine + ' vs ' + other + '. Rematch?' :
+            'Dead heat — ' + mine + ' each!';
+      } else msg = '🏁 Highest score wins. Run it back?';
+      info.append(h('div', { class: 'race-msg' }, msg));
+      rootEl.append(info);
+
+      const controls = h('div', { class: 'race-controls' });
+
+      if (!canPlay) {
+        rootEl.append(controls);
+        if (runs.length >= 1) controls.append(h('button', {
+          class: 'btn btn-primary big', onclick: () => api.share('Beat my score! 🐤'),
+        }, navigator.share ? '📩 Send to opponent' : '🔗 Copy link'));
+        controls.append(rematchRow());
+        return;
+      }
+
+      // ---- live game ----
+      const wrap = h('div', { class: 'race-canvas-wrap' });
+      const canvas = h('canvas', { class: 'race-canvas flappy-canvas' });
+      wrap.append(canvas); rootEl.append(wrap); rootEl.append(controls);
+      controls.append(h('div', { class: 'hint' }, 'Tap the screen to flap. Clear as many pipes as you can.'));
+
+      const gaps = flappyGaps(st.seed);
+      const g = { y: FL.H / 2, v: 0, dist: 0, score: 0, started: false, dead: false, done: false };
+      let raf = null, last = null, acc = 0, finalized = false;
+
+      function flap() {
+        if (g.dead) return;
+        if (!g.started) g.started = true;
+        g.v = FL.flap;
+      }
+      canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); flap(); });
+
+      function step(dt) {
+        if (!g.started || g.dead) return;
+        g.v += FL.grav * dt; g.y += g.v * dt; g.dist += FL.speed * dt;
+        if (g.y - FL.r < 0) { g.y = FL.r; g.v = 0; }                 // bump ceiling
+        if (g.y + FL.r > FL.H) { g.y = FL.H - FL.r; return die(); }  // hit ground
+        // scoring: advance past cleared pipes
+        while (true) {
+          const lx = FL.firstX + g.score * FL.sp - g.dist;
+          if (lx + FL.pw < FL.birdX) g.score++; else break;
+        }
+        // collision with nearby pipes
+        for (let i = Math.max(0, g.score - 1); i <= g.score + 2; i++) {
+          const lx = FL.firstX + i * FL.sp - g.dist;
+          if (FL.birdX + FL.r > lx && FL.birdX - FL.r < lx + FL.pw) {
+            const gy = gaps[i], top = gy - FL.gap / 2, bot = gy + FL.gap / 2;
+            if (g.y - FL.r < top || g.y + FL.r > bot) return die();
+          }
+        }
+      }
+      function die() {
+        if (g.dead) return; g.dead = true;
+        setTimeout(() => {
+          if (finalized) return; finalized = true;
+          if (!canvas.isConnected) return;
+          runs.push({ n: g.score, label: 'Run ' + (runs.length + 1) });
+          st.st = runs; api.session.raced = true; api.persist(); api.rerender();
+        }, 850);
+      }
+
+      function render() {
+        const cssW = wrap.clientWidth || 320;
+        const scale = cssW / FL.W, cssH = FL.H * scale;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+        canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+        // sky
+        const sky = ctx.createLinearGradient(0, 0, 0, FL.H);
+        sky.addColorStop(0, '#1d2b52'); sky.addColorStop(1, '#26406e');
+        ctx.fillStyle = sky; ctx.fillRect(0, 0, FL.W, FL.H);
+        // pipes
+        for (let i = 0; i < 600; i++) {
+          const lx = FL.firstX + i * FL.sp - g.dist;
+          if (lx > FL.W) break; if (lx + FL.pw < 0) continue;
+          const gy = gaps[i], top = gy - FL.gap / 2, bot = gy + FL.gap / 2;
+          ctx.fillStyle = '#57c760'; ctx.strokeStyle = '#3c9a45'; ctx.lineWidth = 3;
+          ctx.fillRect(lx, 0, FL.pw, top); ctx.strokeRect(lx, 0, FL.pw, top);
+          ctx.fillRect(lx, bot, FL.pw, FL.H - bot); ctx.strokeRect(lx, bot, FL.pw, FL.H - bot);
+          ctx.fillStyle = '#6bd674';
+          ctx.fillRect(lx - 3, top - 14, FL.pw + 6, 14); ctx.fillRect(lx - 3, bot, FL.pw + 6, 14);
+        }
+        // ground
+        ctx.fillStyle = '#3a5a3f'; ctx.fillRect(0, FL.H - 6, FL.W, 6);
+        // bird
+        ctx.save(); ctx.translate(FL.birdX, g.y);
+        const ang = Math.max(-0.5, Math.min(1.1, g.v / 600)); ctx.rotate(ang);
+        ctx.fillStyle = '#f6d032'; ctx.beginPath(); ctx.arc(0, 0, FL.r, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#c8a51f'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(5, -4, 4, 0, 7); ctx.fill();
+        ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(6, -4, 1.8, 0, 7); ctx.fill();
+        ctx.fillStyle = '#f39b2e'; ctx.beginPath(); ctx.moveTo(FL.r - 2, 0); ctx.lineTo(FL.r + 7, -3); ctx.lineTo(FL.r + 7, 3); ctx.fill();
+        ctx.restore();
+        // score
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 42px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(String(g.score), FL.W / 2, 16);
+        if (best != null) { ctx.font = 'bold 16px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillText('Target ' + best, FL.W / 2, 62); }
+        if (!g.started) {
+          ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 22px sans-serif'; ctx.textBaseline = 'middle';
+          ctx.fillText('Tap to flap!', FL.W / 2, FL.H * 0.62);
+        }
+        if (g.dead) {
+          ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, FL.W, FL.H);
+          ctx.fillStyle = '#fff'; ctx.font = 'bold 30px sans-serif'; ctx.textBaseline = 'middle';
+          ctx.fillText('💥  Score ' + g.score, FL.W / 2, FL.H / 2);
+        }
+      }
+
+      function frame(now) {
+        if (!canvas.isConnected) { if (raf) cancelAnimationFrame(raf); return; }
+        if (last === null) last = now;
+        let el = (now - last) / 1000; last = now; if (el > 0.1) el = 0.1; acc += el;
+        while (acc >= 1 / 60) { step(1 / 60); acc -= 1 / 60; }
+        render();
+        raf = requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(() => { render(); raf = requestAnimationFrame(frame); });
+      if (api.onResize) api.onResize(() => render());
+
+      function rematchRow() {
+        const row = h('div', { class: 'btn-row' });
+        row.append(h('button', { class: 'btn', onclick: () => api.newGame(null, 'same') }, '🔁 Same pipes'));
+        row.append(h('button', { class: 'btn', onclick: () => api.newGame(null, 'new') }, '🆕 New pipes'));
+        return row;
+      }
+    },
+  };
+
+  root.GAMES = [grandprix, flappy, hex, connect4, gomoku];
 
   // exports for node tests
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       c4View, c4Legal, goView, goLegal, hexView, hexLegal, hexNeighbors, hexWinner,
       makeTrack, onTrack, segmentOnTrack, raceLegalNext, raceFinished, RACE,
+      flappyGaps, FL,
     };
   }
 })(typeof window !== 'undefined' ? window : globalThis);

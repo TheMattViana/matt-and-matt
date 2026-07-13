@@ -83,7 +83,7 @@
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
-        toast('Link copied — paste it to your bro!');
+        toast('Link copied — paste it to your opponent!');
         return true;
       }
     } catch (e) { /* fall through */ }
@@ -92,7 +92,7 @@
       const ta = h('textarea', { style: { position: 'fixed', opacity: '0' } });
       ta.value = text; document.body.appendChild(ta); ta.select();
       document.execCommand('copy'); ta.remove();
-      toast('Link copied — paste it to your bro!');
+      toast('Link copied — paste it to your opponent!');
       return true;
     } catch (e) { toast('Copy failed — long-press the link to copy.'); return false; }
   }
