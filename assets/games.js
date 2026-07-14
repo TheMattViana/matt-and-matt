@@ -331,16 +331,42 @@
     const p = path[path.length - 1];
     return track.finishCells.has(p[1] * track.W + p[0]);
   }
+  // Compact racing-line codec. A run can be 100+ points; stored as JSON arrays
+  // ([[x,y],...]) two finished runs blow the shared link past ~2.5k chars, and
+  // long links get truncated by SMS/chat apps — the truncated hash then fails to
+  // decode and the opponent lands on the menu instead of the race. Every track
+  // coordinate is < 64 (tracks top out ~17×29), so pack each point as two chars
+  // from a URL-safe alphabet: ~4x smaller than JSON, and reversible.
+  const RACE_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  function packPath(pts) {
+    let s = '';
+    for (let i = 0; i < pts.length; i++) {
+      const x = pts[i][0], y = pts[i][1];
+      if (x < 0 || x > 63 || y < 0 || y > 63) return null; // out of range — signal "store raw"
+      s += RACE_ALPHA[x] + RACE_ALPHA[y];
+    }
+    return s;
+  }
+  function unpackPath(s) {
+    const pts = [];
+    if (typeof s !== 'string') return pts;
+    for (let i = 0; i + 1 < s.length; i += 2) pts.push([RACE_ALPHA.indexOf(s[i]), RACE_ALPHA.indexOf(s[i + 1])]);
+    return pts;
+  }
+  // Read a stored run in either the compact ({n,p}) or legacy ({n,path,label}) shape.
+  function runPath(r) { return r.path ? r.path : unpackPath(r.p); }
 
   const grandprix = {
     id: 'grandprix', name: 'Grand Prix', emoji: '🏁', mode: 'duel', tagLabel: 'Race duel',
     blurb: 'Vector racing. You each drive the same track solo — fewest moves wins.',
     makeTrack, onTrack, segmentOnTrack, raceLegalNext, raceFinished,
+    packPath, unpackPath,
     startPath(track) { return [track.start.slice()]; },
     paint(rootEl, api) {
       const st = api.state;
       const track = makeTrack(st.seed);
-      const runs = st.st || [];
+      // Display list derived from the compact stored runs (st.st stays serialized-small).
+      const runs = (st.st || []).map((r, i) => ({ n: r.n, label: r.label || ('Run ' + (i + 1)), path: runPath(r) }));
       const best = runs.length ? Math.min(...runs.map((r) => r.n)) : null;
 
       // ---- header / standings ----
@@ -492,9 +518,12 @@
 
       function finishRun() {
         const turns = state.path.length - 1;
-        const label = 'Run ' + (runs.length + 1);
-        runs.push({ n: turns, path: state.path, label });
-        st.st = runs; st.cur = null;
+        const packed = packPath(state.path);
+        const stored = st.st || (st.st = []);
+        // Compact form keeps the shared link short; fall back to raw points if a
+        // coordinate ever falls outside the codec's range (shouldn't happen).
+        stored.push(packed != null ? { n: turns, p: packed } : { n: turns, path: state.path });
+        st.cur = null;
         api.session.raced = true;
         api.persist();
         api.rerender();

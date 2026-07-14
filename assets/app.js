@@ -29,10 +29,17 @@
 
   // ---- routing -----------------------------------------------------------
   function route() {
+    const raw = location.hash.replace(/^#/, '');
     const st = parseHash();
-    if (!st) { renderMenu(); return; }
+    if (!st) {
+      // A non-empty hash that won't decode means a link arrived but was cut off
+      // or mangled (long links get truncated by SMS/chat apps). Say so instead
+      // of silently dropping to the menu, which looks like the move never came.
+      if (raw) { renderBrokenLink(); return; }
+      renderMenu(); return;
+    }
     const game = GAMES.find((g) => g.id === st.g);
-    if (!game) { renderMenu(); return; }
+    if (!game) { renderBrokenLink(); return; }
     if (game.mode === 'duel') enterDuel(game, st);
     else enterTurns(game, st);
   }
@@ -70,6 +77,22 @@
       h('b', {}, 'How it works · '),
       'No app, no sign-up. The whole game lives in the link — make your move, tap ',
       h('b', {}, 'Send'), ', and pick it back up whenever a link lands in your chat.'));
+    appEl.append(wrap);
+  }
+
+  function renderBrokenLink() {
+    resizeFn = null;
+    clear(appEl);
+    const wrap = h('div', { class: 'menu' });
+    wrap.append(
+      h('div', { class: 'hero' },
+        h('h1', {}, 'Link didn’t come through'),
+        h('p', { class: 'tagline' },
+          'This game link looks cut off. Long links sometimes get split by Messages or WhatsApp — ' +
+          'ask them to send it again, and open the whole link (or paste it straight into your browser’s address bar).')),
+      h('div', { class: 'how' },
+        h('button', { class: 'btn btn-primary big', onclick: goMenu }, '🎮 Go to the games')),
+    );
     appEl.append(wrap);
   }
 
