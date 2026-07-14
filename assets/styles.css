@@ -290,3 +290,35 @@ button { font-family: inherit; cursor: pointer; }
 .d-mid { grid-area: 2 / 2; display: grid; place-items: center; font-size: 26px; opacity: .6; }
 .d-right { grid-area: 2 / 3; }
 .d-down { grid-area: 3 / 2; }
+
+/* ---------------- Doodle Drift ---------------- */
+.doodle-turn { display: flex; flex-direction: column; gap: 18px; margin-top: 4px; }
+.doodle-block { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.doodle-label { color: var(--accent); font-size: 14px; font-weight: 600; align-self: flex-start; }
+.doodle-word {
+  font-size: 22px; font-weight: 700; text-align: center; color: var(--text);
+  background: rgba(110,168,255,.10); border: 1px solid var(--line); border-radius: 12px;
+  padding: 10px 14px; width: 100%; box-sizing: border-box;
+}
+.doodle-frame {
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden; line-height: 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,.25); background: #f7f7fb;
+}
+.doodle-pad { display: block; cursor: crosshair; touch-action: none; }
+.doodle-show { display: block; }
+.doodle-pad-wrap { display: flex; flex-direction: column; gap: 10px; align-items: center; width: 100%; }
+.doodle-guess {
+  width: 100%; box-sizing: border-box; font-size: 17px; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card2); color: var(--text);
+}
+.doodle-guess:focus { outline: none; border-color: var(--accent2); }
+.doodle-lane {
+  border: 1px solid var(--line); background: var(--card); border-radius: 16px;
+  padding: 14px; margin-top: 12px; display: flex; flex-direction: column; gap: 10px; align-items: center;
+}
+.doodle-lane-title { align-self: flex-start; color: var(--muted); font-size: 13px; font-weight: 600; }
+.doodle-word-chip {
+  font-size: 16px; font-weight: 600; color: var(--text); text-align: center;
+  background: rgba(126,224,161,.12); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
+}
+.doodle-mini { border-radius: 12px; border: 1px solid var(--line); }
