@@ -322,3 +322,4 @@ button { font-family: inherit; cursor: pointer; }
   background: rgba(126,224,161,.12); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
 }
 .doodle-mini { border-radius: 12px; border: 1px solid var(--line); }
+.doodle-note { color: var(--good); font-size: 13px; min-height: 16px; text-align: center; }

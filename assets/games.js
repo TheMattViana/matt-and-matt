@@ -1200,7 +1200,11 @@
      The meaning drifts every hop; the end screen replays both chains for the
      laugh. Two interleaved chains so both players draw AND guess every round.
      ===================================================================== */
-  const DD = { ROUNDS: 3, PAD: 300, MINDIST: 2.5, MAXPTS: 80, MAXSTROKES: 24 };
+  // MAXPTS/MAXSTROKES are generous backstops so drawing never feels capped; the
+  // link stays short because ddPackFit simplifies each drawing down to MAXCHARS
+  // on lock-in (six drawings ride in one shared URL, and long links get cut off
+  // by messaging apps). MINDIST thins points during capture; the rest is RDP.
+  const DD = { ROUNDS: 3, PAD: 300, MINDIST: 1.5, MAXPTS: 1500, MAXSTROKES: 40, MAXCHARS: 220 };
   const DD_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   const DOODLE_PROMPTS = [
     'a cat riding a skateboard', 'robot eating spaghetti', 'haunted toaster', 'a shark in a top hat',
@@ -1237,6 +1241,48 @@
       for (let i = 0; i + 1 < seg.length; i += 2) pts.push([DD_ALPHA.indexOf(seg[i]), DD_ALPHA.indexOf(seg[i + 1])]);
       return pts;
     }).filter((s) => s.length);
+  }
+  // Ramer–Douglas–Peucker: drop points that lie within `eps` of the line between
+  // the vertices we keep. Iterative (no recursion) so a huge stroke can't blow
+  // the stack. Collapses hand-drawn wobble to its meaningful corners.
+  function ddSimplifyStroke(pts, eps) {
+    if (pts.length <= 2) return pts.slice();
+    const keep = new Array(pts.length).fill(false);
+    keep[0] = keep[pts.length - 1] = true;
+    const stack = [[0, pts.length - 1]], eps2 = eps * eps;
+    while (stack.length) {
+      const seg = stack.pop(), a = seg[0], b = seg[1];
+      const ax = pts[a][0], ay = pts[a][1], dx = pts[b][0] - ax, dy = pts[b][1] - ay;
+      const len2 = dx * dx + dy * dy;
+      let idx = -1, maxd = -1;
+      for (let i = a + 1; i < b; i++) {
+        const px = pts[i][0] - ax, py = pts[i][1] - ay;
+        let d2;
+        if (len2 === 0) d2 = px * px + py * py;
+        else { const t = (px * dx + py * dy) / len2, cx = px - t * dx, cy = py - t * dy; d2 = cx * cx + cy * cy; }
+        if (d2 > maxd) { maxd = d2; idx = i; }
+      }
+      if (maxd > eps2 && idx > 0) { keep[idx] = true; stack.push([a, idx], [idx, b]); }
+    }
+    const out = [];
+    for (let i = 0; i < pts.length; i++) if (keep[i]) out.push(pts[i]);
+    return out;
+  }
+  function ddSimplifyDrawing(strokes, eps) {
+    return strokes.map((s) => ddSimplifyStroke(s, eps)).filter((s) => s.length);
+  }
+  // Pack a drawing, simplifying harder and harder until it fits the char budget.
+  // Guarantees a bounded size no matter how much was drawn — detail degrades
+  // gracefully instead of the link breaking on the far end.
+  function ddPackFit(strokes, maxChars) {
+    let packed = ddPackDrawing(strokes);
+    if (packed.length <= maxChars) return packed;
+    let eps = 0.8;
+    for (let i = 0; i < 16 && packed.length > maxChars; i++) {
+      packed = ddPackDrawing(ddSimplifyDrawing(strokes, eps));
+      eps *= 1.5;
+    }
+    return packed;
   }
   function ddPick(seed, k) {
     const rnd = root.UI.mulberry32(((seed >>> 0) ^ (k ? 0x1a2b3c : 0x9e3779)) >>> 0);
@@ -1393,7 +1439,7 @@
         if (!ready()) return;
         cur.acts.forEach((a) => {
           if (a.do === 'guess') st[a.th].push({ k: 'w', v: pending.guess });
-          else st[a.th].push({ k: 'd', v: ddPackDrawing(pending.draw) });
+          else st[a.th].push({ k: 'd', v: ddPackFit(pending.draw, DD.MAXCHARS) });
         });
         api.persist();
         api.session.acted = true;
@@ -1408,12 +1454,17 @@
         wrap.append(h('div', { class: 'doodle-frame' }, canvas));
         const strokes = pending.draw; // shared reference
         let size = DD.PAD, drawing = false, cur2 = null, npts = 0;
+        const note = h('div', { class: 'doodle-note' }, '');
+        function setNote() {
+          const full = strokes.length >= DD.MAXSTROKES || npts >= DD.MAXPTS;
+          note.textContent = full ? '✋ That’s a lot of ink! Undo, clear, or lock it in.' : '';
+        }
 
         function fit() {
           size = Math.min(DD.PAD, wrap.clientWidth || DD.PAD);
           repaint();
         }
-        function repaint() { paintDoodle(canvas, strokes, size); }
+        function repaint() { paintDoodle(canvas, strokes, size); setNote(); }
         function pos(ev) {
           const r = canvas.getBoundingClientRect();
           const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
@@ -1448,7 +1499,7 @@
           h('button', {
             class: 'btn btn-ghost', onclick: () => { strokes.length = 0; npts = 0; repaint(); refresh(); },
           }, '🗑 Clear'));
-        wrap.append(tools);
+        wrap.append(tools, note);
         requestAnimationFrame(fit);
         if (api.onResize) api.onResize(fit);
         return wrap;
@@ -1467,6 +1518,7 @@
       draftView, draftLegal, draftPicker, computeResults, rollFor, CARS, DRAFT, POSITIONS, ERAS,
       iceBoardGen, iceView, iceLegal, iceLegalMoveDirs, iceLegalBreaks, iceCascade,
       ddPackDrawing, ddUnpackDrawing, ddCurrent, ddTurnActs, ddPick, ddInit, DOODLE_PROMPTS, DD,
+      ddSimplifyStroke, ddSimplifyDrawing, ddPackFit,
     };
   }
 })(typeof window !== 'undefined' ? window : globalThis);
